@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wireframe Space Shooter</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="ui-layer">
+      <div id="damage-flash"></div>
+
+      <!-- Warning Alerts (center-top) -->
+      <div id="warning-container">
+        <div id="stall-warning" class="warning-text">⚠ STALL ⚠</div>
+        <div id="terrain-warning" class="warning-text">⚠ TERRAIN — PULL UP ⚠</div>
+        <div id="no-charge-warning" class="warning-text charge-warn">NO CHARGE</div>
+      </div>
+
+      <div id="compass-container">
+        <div id="compass-strip">N · · NE · · E · · SE · · S · · SW · · W · · NW · · N</div>
+      </div>
+
+      <div id="hud-top-container">
+        <div id="activity-feed" class="hud-box"></div>
+        <div id="stats-container" class="hud-box">
+          <div class="stat-line">TIME: <span id="stat-time">00:00</span></div>
+          <div class="stat-line">KILLS: <span id="stat-kills">0</span></div>
+          <div class="stat-line">THREAT: <span id="stat-threat">LOW</span></div>
+          <div class="stat-line">ALT: <span id="stat-alt">0</span></div>
+        </div>
+      </div>
+
+      <div id="crosshair">
+        <div class="crosshair-bracket left">[</div>
+        <div class="crosshair-center">+</div>
+        <div class="crosshair-bracket right">]</div>
+      </div>
+
+      <div id="meters-container">
+        <div class="meter">
+          <div class="meter-label">HULL</div>
+          <div class="meter-bg"><div id="health-bar-fill"></div></div>
+        </div>
+        <div class="meter" id="stamina-container">
+          <div class="meter-label">ENGINES</div>
+          <div class="meter-bg"><div id="stamina-bar-fill"></div></div>
+        </div>
+        <div class="meter" id="charge-container">
+          <div class="meter-label">CHARGE</div>
+          <div class="meter-bg"><div id="charge-bar-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="enemy-ui-layer"></div>
+      <div id="crt-overlay"></div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen">
+      <div id="game-over-content">
+        <div id="game-over-title">SHIP DESTROYED</div>
+        <div id="game-over-static"></div>
+        <div id="game-over-stats">
+          <div>TIME SURVIVED: <span id="go-time">00:00</span></div>
+          <div>TARGETS ELIMINATED: <span id="go-kills">0</span></div>
+        </div>
+        <button id="retry-button">[ INITIATE CLONING SEQUENCE — RETRY ]</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

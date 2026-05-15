@@ -1,0 +1,69 @@
+/* === RESET === */
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #000; font-family: 'VT323', monospace; color: #ffb700; font-size: 18px; cursor: crosshair; }
+#app { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+#ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+
+/* === CRT Overlay === */
+#crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06)); background-size: 100% 4px, 6px 100%; z-index: 100; opacity: 0.5; pointer-events: none; }
+
+/* === Warning Alerts === */
+#warning-container { position: absolute; top: 55px; left: 50%; transform: translateX(-50%); z-index: 50; text-align: center; }
+.warning-text { display: none; font-size: 38px; font-weight: bold; letter-spacing: 4px; padding: 5px 20px; animation: blink-warn 0.4s infinite alternate; }
+.warning-text.active { display: block; }
+#stall-warning { color: #ff0000; text-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000; }
+#terrain-warning { color: #ff4400; text-shadow: 0 0 15px #ff4400, 0 0 30px #ff4400; }
+.charge-warn { color: #ff8800; text-shadow: 0 0 10px #ff8800; font-size: 28px; }
+@keyframes blink-warn { 0% { opacity: 1; } 100% { opacity: 0.2; } }
+
+/* === Compass === */
+#compass-container { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 250px; height: 28px; overflow: hidden; text-align: center; border: 1px solid #ffb700; background: rgba(25,15,0,0.5); box-shadow: inset 0 0 5px #ffb700; }
+#compass-container::after { content: '▼'; position: absolute; left: 50%; top: -2px; transform: translateX(-50%); color: #fff; font-size: 10px; z-index: 3; }
+#compass-strip { position: absolute; white-space: nowrap; line-height: 28px; letter-spacing: 5px; font-weight: bold; left: 125px; transition: transform 0.1s linear; text-shadow: 0 0 5px #ffb700; font-size: 14px; }
+
+/* === HUD Top === */
+#hud-top-container { position: absolute; top: 55px; left: 15px; right: 15px; display: flex; justify-content: space-between; pointer-events: none; }
+.hud-box { border: 1px solid rgba(255,183,0,0.4); background: rgba(10,5,0,0.5); padding: 8px 10px; box-shadow: 0 0 4px rgba(255,183,0,0.3); text-shadow: 0 0 3px #ffb700; font-size: 15px; }
+
+/* === Activity Feed === */
+#activity-feed { width: 220px; height: 100px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; font-size: 13px; }
+.log-entry { animation: fadeOut 5s forwards; margin-bottom: 2px; }
+.log-entry.critical { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
+.log-entry.warning { color: #ff8800; text-shadow: 0 0 5px #ff8800; }
+@keyframes fadeOut { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+
+/* === Stats === */
+#stats-container { width: 145px; font-size: 15px; }
+.stat-line { margin-bottom: 1px; }
+
+/* === Crosshair === */
+#crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; display: flex; justify-content: space-between; align-items: center; color: #ffb700; font-size: 24px; font-weight: bold; text-shadow: 0 0 8px #ffb700; will-change: transform; transition: width 0.2s ease; }
+.crosshair-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 16px; opacity: 0.8; }
+
+/* === Meters (Bottom) === */
+#meters-container { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; width: 500px; }
+.meter { flex: 1; text-align: center; }
+.meter-label { font-size: 13px; margin-bottom: 2px; text-shadow: 0 0 5px #ffb700; letter-spacing: 1px; }
+.meter-bg { width: 100%; height: 7px; border: 1px solid #ffb700; background: rgba(20,10,0,0.5); position: relative; overflow: hidden; }
+#health-bar-fill { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #00ffaa; transition: width 0.2s; box-shadow: 0 0 8px #00ffaa; }
+#stamina-bar-fill { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; background: #ffb700; transition: width 0.1s; box-shadow: 0 0 8px #ffb700; }
+#charge-bar-fill { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; background: #00aaff; transition: width 0.1s; box-shadow: 0 0 8px #00aaff; }
+
+/* === Enemy UI === */
+#enemy-ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.enemy-hp-container { position: absolute; width: 40px; height: 4px; border: 1px solid #ff0000; background: rgba(0,0,0,0.8); transform: translate(-50%, -50%); }
+.enemy-hp-fill { height: 100%; background: #ff0000; box-shadow: 0 0 5px #ff0000; width: 100%; }
+
+/* === Damage Flash === */
+#damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,0,0,0) 30%, rgba(255,0,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.5s ease-out; }
+.hit-flash { opacity: 1 !important; transition: none !important; }
+
+/* === Game Over Screen === */
+#game-over-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 200; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; flex-direction: column; pointer-events: all; }
+#game-over-screen.active { display: flex; }
+#game-over-content { text-align: center; }
+#game-over-title { font-size: 72px; color: #ff0000; text-shadow: 0 0 30px #ff0000, 0 0 60px #ff0000; margin-bottom: 10px; letter-spacing: 8px; animation: blink-warn 0.6s infinite alternate; }
+#game-over-static { width: 400px; height: 6px; margin: 20px auto; background: repeating-linear-gradient(90deg, #333 0px, #555 2px, #222 4px); opacity: 0.6; }
+#game-over-stats { font-size: 28px; color: #ffb700; text-shadow: 0 0 10px #ffb700; margin: 25px 0; line-height: 1.6; }
+#retry-button { font-family: 'VT323', monospace; font-size: 24px; color: #00ffaa; background: transparent; border: 2px solid #00ffaa; padding: 12px 30px; cursor: pointer; text-shadow: 0 0 10px #00ffaa; box-shadow: 0 0 10px #00ffaa; transition: all 0.2s; letter-spacing: 2px; pointer-events: all; }
+#retry-button:hover { background: rgba(0,255,170,0.15); box-shadow: 0 0 25px #00ffaa; }
