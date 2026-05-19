@@ -5,9 +5,33 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
 
 /* === CRT Overlay === */
-#crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06)); background-size: 100% 4px, 6px 100%; z-index: 100; opacity: 0.5; pointer-events: none; }
+#crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%); background-size: 100% 4px; z-index: 99; pointer-events: none; }
+#crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(0,255,0,0.03) 0%, rgba(0,0,0,0.4) 100%); z-index: 100; pointer-events: none; mix-blend-mode: overlay; box-shadow: inset 0 0 100px rgba(0,0,0,0.9); }
 
-/* === Warning Alerts === */
+/* === Tactical Radar === */
+#radar-container { position: absolute; bottom: 25px; right: 25px; width: 180px; height: 180px; border: 2px solid rgba(255,183,0,0.5); border-radius: 50%; background: rgba(10,5,0,0.6); box-shadow: 0 0 15px rgba(255,183,0,0.2), inset 0 0 20px rgba(255,183,0,0.1); overflow: hidden; }
+.radar-grid { position: absolute; width: 100%; height: 100%; background: 
+  linear-gradient(90deg, transparent 49%, rgba(255,183,0,0.3) 49%, rgba(255,183,0,0.3) 51%, transparent 51%),
+  linear-gradient(0deg, transparent 49%, rgba(255,183,0,0.3) 49%, rgba(255,183,0,0.3) 51%, transparent 51%); 
+  border-radius: 50%;
+}
+.radar-grid::after { content: ''; position: absolute; top: 25%; left: 25%; right: 25%; bottom: 25%; border: 1px solid rgba(255,183,0,0.3); border-radius: 50%; }
+.radar-player { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 4px; height: 4px; background: #00ffaa; border-radius: 50%; box-shadow: 0 0 5px #00ffaa; }
+.radar-sweep { position: absolute; top: 0; left: 50%; width: 50%; height: 50%; background: linear-gradient(90deg, rgba(255,183,0,0.5), transparent); transform-origin: bottom left; animation: radar-spin 4s linear infinite; }
+@keyframes radar-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+#radar-blips { position: absolute; width: 100%; height: 100%; }
+.radar-blip { position: absolute; width: 4px; height: 4px; background: #ff0000; border-radius: 50%; box-shadow: 0 0 5px #ff0000; transform: translate(-50%, -50%); }
+
+/* === Target Lock === */
+#target-lock { position: absolute; display: none; width: 80px; height: 80px; transform: translate(-50%, -50%); pointer-events: none; transition: left 0.1s, top 0.1s; }
+.lock-corner { position: absolute; width: 15px; height: 15px; border: 3px solid #ff0000; box-shadow: 0 0 10px #ff0000; transition: all 0.2s; }
+.lock-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+.lock-corner.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+.lock-corner.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+.lock-corner.br { bottom: 0; right: 0; border-left: none; border-top: none; }
+.lock-text { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: #ff0000; font-size: 14px; text-shadow: 0 0 5px #ff0000; font-weight: bold; }
+#target-lock.active { display: block; animation: lock-pulse 0.5s infinite alternate; }
+@keyframes lock-pulse { from { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; } to { transform: translate(-50%, -50%) scale(0.9); opacity: 1; } }
 #warning-container { position: absolute; top: 55px; left: 50%; transform: translateX(-50%); z-index: 50; text-align: center; }
 .warning-text { display: none; font-size: 38px; font-weight: bold; letter-spacing: 4px; padding: 5px 20px; animation: blink-warn 0.4s infinite alternate; }
 .warning-text.active { display: block; }
@@ -57,6 +81,16 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 /* === Damage Flash === */
 #damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,0,0,0) 30%, rgba(255,0,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.5s ease-out; }
 .hit-flash { opacity: 1 !important; transition: none !important; }
+
+/* === Boost Vignette === */
+#boost-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 20%, rgba(255,100,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 4; transition: opacity 0.2s ease; }
+#boost-vignette.active { opacity: 1; }
+
+/* === Altitude Warning === */
+#altitude-warning { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 30%, rgba(255,0,0,0.4) 100%); opacity: 0; pointer-events: none; z-index: 6; transition: opacity 0.3s ease; display: flex; align-items: center; justify-content: center; }
+#altitude-warning.active { opacity: 1; animation: alt-pulse 0.5s infinite alternate; }
+#altitude-warning .warning-text { color: #ff0000; font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 4px; text-shadow: 0 0 10px #ff0000; }
+@keyframes alt-pulse { from { opacity: 0.4; } to { opacity: 1.0; } }
 
 /* === Game Over Screen === */
 #game-over-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 200; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; flex-direction: column; pointer-events: all; }

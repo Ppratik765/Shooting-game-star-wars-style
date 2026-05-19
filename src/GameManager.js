@@ -36,6 +36,11 @@ export class GameManager {
       this.uiManager.addLog('TARGET DESTROYED');
     };
 
+    this.enemyManager.onPlayerHit = () => {
+      this.uiManager.triggerDamageFlash();
+      this.uiManager.addLog('INCOMING FIRE — HULL DAMAGE', 'critical');
+    };
+
     // Retry button
     const retryBtn = document.getElementById('retry-button');
     if (retryBtn) {
@@ -52,7 +57,7 @@ export class GameManager {
 
     if (this.isDead) {
       // Still render particles for visual effect during death
-      this.particleSystem.update(deltaTime, this.terrain, this.playerShip.distanceTraveled);
+      this.particleSystem.update(deltaTime, this.terrain);
       return;
     }
 
@@ -61,10 +66,10 @@ export class GameManager {
 
     // Update subsystems
     this.playerShip.update(deltaTime, this.inputController, this.terrain);
-    this.terrain.update(deltaTime, this.playerShip.distanceTraveled, this.playerShip.camera.position.x);
+    this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
     this.enemyManager.update(deltaTime);
-    this.weaponSystem.update(deltaTime, this.inputController, currentTime);
-    this.particleSystem.update(deltaTime, this.terrain, this.playerShip.distanceTraveled);
+    this.weaponSystem.update(deltaTime, this.inputController, currentTime, this.playerShip.velocity);
+    this.particleSystem.update(deltaTime, this.terrain);
 
     // UI updates
     this.uiManager.setCrosshairTarget(this.inputController.mouse.x, this.inputController.mouse.y);
@@ -74,7 +79,7 @@ export class GameManager {
       this.state,
       this.weaponSystem.getChargeState()
     );
-    this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies());
+    this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies(), this.weaponSystem.lockedEnemy);
 
     // Cleanup input
     this.inputController.clearDeltas();

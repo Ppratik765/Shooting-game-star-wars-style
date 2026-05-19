@@ -28,7 +28,7 @@ export class ParticleSystem {
     this.debrisPool = [];
   }
 
-  update(deltaTime, terrain, playerDistance) {
+  update(deltaTime, terrain) {
     let count = 0;
 
     for (let i = 0; i < this.maxParticles; i++) {
@@ -63,7 +63,7 @@ export class ParticleSystem {
       d.position.addScaledVector(d.velocity, deltaTime);
 
       if (terrain) {
-        const tH = terrain.getHeightAt(d.position.x, d.position.z, playerDistance);
+        const tH = terrain.getHeightAt(d.position.x, d.position.z);
         if (d.position.y <= tH) {
           this.spawnGroundExplosion(d.position);
           this.debrisPool.splice(i, 1);
@@ -79,19 +79,24 @@ export class ParticleSystem {
   }
 
   spawnAirburst(position) {
-    for (let i = 0; i < 60; i++) {
+    // Large "Violent" explosion - more particles and higher speed
+    for (let i = 0; i < 180; i++) {
       const p = this._getFree();
       if (!p) break;
       p.active = true;
       p.position.copy(position);
       p.velocity.set(
-        (Math.random() - 0.5) * 60,
-        (Math.random() - 0.5) * 60,
-        (Math.random() - 0.5) * 60
+        (Math.random() - 0.5) * 140,
+        (Math.random() - 0.5) * 140,
+        (Math.random() - 0.5) * 140
       );
       p.age = 0;
-      p.life = 0.4 + Math.random() * 0.6;
-      p.color.setHex(Math.random() > 0.4 ? 0xffaa00 : 0xff4400);
+      p.life = 0.3 + Math.random() * 0.7;
+      // High-contrast mix: white hot center, orange/red edges
+      const r = Math.random();
+      if (r > 0.8) p.color.setHex(0xffffff);
+      else if (r > 0.4) p.color.setHex(0xffaa00);
+      else p.color.setHex(0xff0000);
     }
 
     // Debris that falls to ground

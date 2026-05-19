@@ -10,20 +10,18 @@ export class PlayerShip {
     this.roll = 0;
 
     // Position & velocity
-    this.velocityY = 0;
-    this.camera.position.set(0, 300, 0);
+    this.velocity = new THREE.Vector3();
+    this.camera.position.set(0, 110, 0); 
+    this.isAboveMaxAlt = false;
 
-    // Forward speed (simulated via terrain scroll)
-    this.baseSpeed = 60;
-    this.boostSpeed = 140;
-    this.currentSpeed = this.baseSpeed;
-    this.distanceTraveled = 0;
+    // Throttle & Speed
+    this.minThrottle = 40;
+    this.maxThrottle = 175; // Slightly slower as requested
+    this.throttle = 100;
 
     // Physics constants
-    this.gravity = -18;
-    this.liftForce = 80;      // W key lift — strong enough to climb
-    this.nosediveForce = -25;  // S key push down
-    this.strafeSpeed = 90;     // A/D lateral speed
+    this.gravity = -12; // Much lighter gravity
+    this.turnSpeed = 1.5;
 
     // Stamina & Boost
     this.maxStamina = 100;
@@ -63,34 +61,49 @@ export class PlayerShip {
     this._updateStall(deltaTime);
     this._applyPhysics(deltaTime, inputController);
     this._updateCamera(deltaTime);
-    this._checkTerrain(terrain);
+    this._checkTerrain(terrain, deltaTime);
   }
 
   _handleInput(deltaTime, input) {
-    // Mouse controls camera yaw and pitch
-    const mouseSensitivity = 0.002;
-    this.yaw -= input.mouse.movementX * mouseSensitivity;
+    // Controls: W/S or Arrows for Pitch (Climb/Dive), Mouse for Aiming, A/D for Banking
+    const mouseSensitivity = 0.0028; // Reduced slightly as requested
+    
+    // Pitch (up/down)
     this.pitch -= input.mouse.movementY * mouseSensitivity;
+    if (input.isForward() || input.keys['ArrowUp']) {
+        this.pitch += 1.2 * deltaTime; // Reduced slightly from 1.5
+    }
+    if (input.isBackward() || input.keys['ArrowDown']) {
+        this.pitch -= 1.2 * deltaTime;
+    }
 
-    // Clamp pitch to prevent full flips
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -1.2, 1.2);
+    // Yaw (left/right) - Mouse X
+    this.yaw -= input.mouse.movementX * mouseSensitivity;
 
-    // A/D: Roll visual + lateral strafe
-    let rollTarget = 0;
-    if (input.isLeft()) rollTarget = 0.5;
-    if (input.isRight()) rollTarget = -0.5;
-    this.roll = THREE.MathUtils.lerp(this.roll, rollTarget, 5 * deltaTime);
+    // Roll (banking) - A/D
+    const rollSpeed = 2.5;
+    if (input.isLeft()) {
+      this.roll = THREE.MathUtils.lerp(this.roll, 1.0, rollSpeed * deltaTime);
+      this.yaw += 0.8 * deltaTime;
+    } else if (input.isRight()) {
+      this.roll = THREE.MathUtils.lerp(this.roll, -1.0, rollSpeed * deltaTime);
+      this.yaw -= 0.8 * deltaTime;
+    } else {
+      this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
+    }
 
-    // Boost
+    // Constant forward throttle (since W/S are now Pitch)
+    this.throttle = 110; // Slower base speed as requested
     if (input.isBoosting() && !this.staminaDepleted) {
       this.isBoosting = true;
       this.targetFOV = this.boostFOV;
-      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, this.boostSpeed, 5 * deltaTime);
+      this.throttle = 220;
     } else {
       this.isBoosting = false;
       this.targetFOV = this.baseFOV;
-      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, this.baseSpeed, 5 * deltaTime);
     }
+
+    this.pitch = THREE.MathUtils.clamp(this.pitch, -1.4, 1.4);
   }
 
   _updateStall(deltaTime) {
@@ -113,35 +126,21 @@ export class PlayerShip {
   }
 
   _applyPhysics(deltaTime, input) {
-    // Gravity always pulls down
-    this.velocityY += this.gravity * deltaTime;
+    // Calculate forward vector from current orientation
+    const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
+    const forward = new THREE.Vector3(0, 0, -1).applyEuler(euler);
 
-    // W = Lift (only if not stalled)
-    if (input.isForward() && !this.isStalled) {
-      this.velocityY += this.liftForce * deltaTime;
-    }
+    // Aerodynamic flight model: velocity naturally wants to align with the nose
+    const targetVelocity = forward.clone().multiplyScalar(this.throttle);
 
-    // S = Nosedive
-    if (input.isBackward()) {
-      this.velocityY += this.nosediveForce * deltaTime;
-    }
+    // Snappy air grip (6.0) allows for rapid climbing and loops
+    this.velocity.lerp(targetVelocity, 6.0 * deltaTime);
 
-    // Dampen vertical velocity slightly for stability
-    this.velocityY *= 0.98;
+    // Gravity constantly pulls down
+    this.velocity.y += this.gravity * deltaTime;
 
-    // Apply vertical movement
-    this.camera.position.y += this.velocityY * deltaTime;
-
-    // A/D: Lateral strafe
-    if (input.isLeft()) {
-      this.camera.position.x -= this.strafeSpeed * deltaTime;
-    }
-    if (input.isRight()) {
-      this.camera.position.x += this.strafeSpeed * deltaTime;
-    }
-
-    // Forward distance (terrain scroll)
-    this.distanceTraveled += this.currentSpeed * deltaTime;
+    // Apply movement
+    this.camera.position.addScaledVector(this.velocity, deltaTime);
   }
 
   _updateStamina(deltaTime) {
@@ -168,28 +167,33 @@ export class PlayerShip {
     this.camera.updateProjectionMatrix();
   }
 
-  _checkTerrain(terrain) {
+  _checkTerrain(terrain, deltaTime) {
     if (!terrain) return;
     const terrainHeight = terrain.getHeightAt(
       this.camera.position.x,
-      this.camera.position.z,
-      this.distanceTraveled
+      this.camera.position.z
     );
     this.altitude = this.camera.position.y - terrainHeight;
     this.terrainWarning = this.altitude < 40;
+
+    // Max altitude penalty
+    this.isAboveMaxAlt = this.camera.position.y > 500;
+    if (this.isAboveMaxAlt) {
+      this.hp -= 5 * deltaTime; // Take damage above 500 altitude
+    }
+
     if (this.altitude < 2) {
       this.terrainCrashed = true;
     }
   }
 
   reset() {
-    this.camera.position.set(0, 300, 0);
+    this.camera.position.set(0, 110, 0);
     this.pitch = 0;
     this.yaw = 0;
     this.roll = 0;
-    this.velocityY = 0;
-    this.currentSpeed = this.baseSpeed;
-    this.distanceTraveled = 0;
+    this.velocity.set(0, 0, 0);
+    this.throttle = 100;
     this.stamina = this.maxStamina;
     this.staminaDepleted = false;
     this.isBoosting = false;
@@ -211,13 +215,14 @@ export class PlayerShip {
       maxStamina: this.maxStamina,
       isBoosting: this.isBoosting,
       staminaDepleted: this.staminaDepleted,
-      speed: this.currentSpeed,
+      speed: this.velocity.length(),
       hp: this.hp,
       maxHp: this.maxHp,
       isStalled: this.isStalled,
       terrainWarning: this.terrainWarning,
       terrainCrashed: this.terrainCrashed,
-      altitude: this.altitude
+      altitude: this.altitude,
+      isAboveMaxAlt: this.isAboveMaxAlt
     };
   }
 }
