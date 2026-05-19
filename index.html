@@ -20,7 +20,7 @@
       </div>
 
       <div id="compass-container">
-        <div id="compass-strip">N · · NE · · E · · SE · · S · · SW · · W · · NW · · N</div>
+        <div id="compass-strip">S · SW · W · NW · N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S</div>
       </div>
 
       <div id="hud-top-container">
@@ -39,6 +39,23 @@
         <div class="crosshair-bracket right">]</div>
       </div>
 
+      <!-- Target Lock Bracket -->
+      <div id="target-lock">
+        <div class="lock-corner tl"></div>
+        <div class="lock-corner tr"></div>
+        <div class="lock-text">LCK</div>
+        <div class="lock-corner bl"></div>
+        <div class="lock-corner br"></div>
+      </div>
+
+      <!-- Tactical Radar -->
+      <div id="radar-container">
+        <div class="radar-grid"></div>
+        <div class="radar-sweep"></div>
+        <div class="radar-player"></div>
+        <div id="radar-blips"></div>
+      </div>
+
       <div id="meters-container">
         <div class="meter">
           <div class="meter-label">HULL</div>
@@ -55,6 +72,17 @@
       </div>
 
       <div id="enemy-ui-layer"></div>
+      
+      <!-- Boost Vignette -->
+      <div id="boost-vignette"></div>
+      
+      <!-- Altitude Penalty -->
+      <div id="altitude-warning">
+        <div class="warning-text">ALTITUDE TOO HIGH, HULL IS COMPROMISED</div>
+      </div>
+
+      <!-- Enhanced CRT Overlay -->
+      <div id="crt-scanlines"></div>
       <div id="crt-overlay"></div>
     </div>
 
