@@ -44,7 +44,7 @@ export class WeaponSystem {
 
     // Shared Materials for performance
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xff3300,
+      color: 0xff9900,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -80,8 +80,8 @@ export class WeaponSystem {
           float scanline = sin(vLocalPos.z * 1.5 - uTime * 30.0) * 0.5 + 0.5;
           
           // RGB Split Style Holographic color
-          vec3 baseColor = vec3(1.0, 0.4, 0.0); // Orange-Red
-          vec3 altColor = vec3(1.0, 0.0, 0.3);  // Magenta-Red shift
+          vec3 baseColor = vec3(1.0, 0.55, 0.0); // Vibrant orange
+          vec3 altColor = vec3(1.0, 0.75, 0.1);  // Amber-Yellow shift
           vec3 finalColor = mix(baseColor, altColor, scanline);
           
           // Fading at ends of cylinder
