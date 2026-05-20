@@ -27,7 +27,7 @@ export class WeaponSystem {
     // Laser bolt geometry: thin retro-futuristic CRT laser
     const segments = 8;
     const boltLength = 160;
-    const boltRadius = 0.15;
+    const boltRadius = 0.10;
     const geom = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLength, segments, 6);
     geom.rotateX(-Math.PI / 2);
     this.boltGeom = geom;

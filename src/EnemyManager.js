@@ -536,11 +536,11 @@ export class EnemyManager {
   }
 
   _placeDeathMarker(position) {
-    // Create a small diamond sprite at crash location
+    // Create a large diamond sprite at crash location
     const sprite = new THREE.Sprite(this.markerMat.clone());
     sprite.position.copy(position);
-    sprite.position.y += 3; // slightly above terrain
-    sprite.scale.set(4, 4, 1);
+    sprite.position.y += 10; // slightly above terrain
+    sprite.scale.set(22, 22, 1);
     this.scene.add(sprite);
     this.deathMarkers.push(sprite);
   }
