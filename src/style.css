@@ -192,9 +192,9 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 }
 
 #mobile-shoot-btn {
-  position: absolute; right: 15px; bottom: 20px;
-  width: 130px; height: 80px;
-  border-radius: 8px;
+  position: absolute; right: 35px; bottom: 15px;
+  width: 90px; height: 90px;
+  border-radius: 50%;
   background: radial-gradient(circle, rgba(255,100,0,0.5), rgba(255,50,0,0.25));
   border: 2px solid rgba(255,100,0,0.9);
   display: flex; align-items: center; justify-content: center;
@@ -228,21 +228,76 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
   box-shadow: 0 0 25px rgba(0,150,255,0.7);
 }
 
-#mobile-lock-btn {
-  position: absolute; left: 20px; top: 20px;
-  width: 65px; height: 65px;
-  border-radius: 8px;
-  background: rgba(255,0,0,0.15);
-  border: 2px solid rgba(255,0,0,0.6);
+/* === Settings Button & Menu === */
+#settings-btn {
+  position: absolute; top: 15px; left: 15px;
+  width: 40px; height: 40px;
+  border: 1px solid rgba(255, 183, 0, 0.4);
+  background: rgba(10, 5, 0, 0.6);
+  color: #ffb700;
+  border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  color: #ff2200; font-family: 'VT323', monospace; font-size: 14px;
-  text-shadow: 0 0 8px #ff2200;
-  pointer-events: all; user-select: none;
+  cursor: pointer; pointer-events: all;
+  z-index: 150;
+  transition: all 0.2s;
 }
 
-#mobile-lock-btn:active {
-  background: rgba(255,0,0,0.35);
-  box-shadow: 0 0 15px rgba(255,0,0,0.8);
+#settings-btn:hover {
+  background: rgba(255, 183, 0, 0.15);
+  border-color: #ffb700;
+  box-shadow: 0 0 12px rgba(255, 183, 0, 0.4);
+}
+
+#settings-menu {
+  display: none;
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  z-index: 190;
+  background: rgba(0, 0, 0, 0.85);
+  align-items: center; justify-content: center;
+  pointer-events: all;
+}
+
+#settings-content {
+  text-align: center;
+  border: 2px solid #ffb700;
+  background: rgba(10, 5, 0, 0.95);
+  padding: 30px 45px;
+  border-radius: 8px;
+  box-shadow: 0 0 25px rgba(255, 183, 0, 0.3);
+}
+
+#settings-title {
+  font-size: 38px;
+  color: #ffb700;
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px #ffb700;
+}
+
+.settings-divider {
+  width: 180px; height: 2px;
+  margin: 15px auto 25px;
+  background: repeating-linear-gradient(90deg, #ffb700 0px, #ffb700 4px, transparent 4px, transparent 8px);
+}
+
+.settings-btn {
+  display: block;
+  width: 220px;
+  margin: 15px auto;
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  color: #00ffaa;
+  background: transparent;
+  border: 2px solid #00ffaa;
+  padding: 10px 20px;
+  cursor: pointer;
+  text-shadow: 0 0 8px #00ffaa;
+  box-shadow: 0 0 8px rgba(0, 255, 170, 0.3);
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  background: rgba(0, 255, 170, 0.15);
+  box-shadow: 0 0 20px #00ffaa;
 }
 
 /* === Mobile layout adjustments === */
@@ -263,6 +318,11 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
   
   #mobile-hud {
     display: block;
+  }
+
+  #settings-btn {
+    top: 10px; left: 10px;
+    width: 34px; height: 34px;
   }
 }
 

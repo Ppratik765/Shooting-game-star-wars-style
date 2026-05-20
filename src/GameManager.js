@@ -45,6 +45,7 @@ export class GameManager {
     this.scene  = scene;
     this.camera = camera;
     this.isDead = false;
+    this.isPaused = false;
 
     this.state = { timeSurvived: 0, kills: 0 };
 
@@ -71,6 +72,41 @@ export class GameManager {
 
     const retryBtn = document.getElementById('retry-button');
     if (retryBtn) retryBtn.addEventListener('click', () => this.reset());
+
+    // Settings & Calibration menu hookups
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsMenu = document.getElementById('settings-menu');
+    const resumeBtn = document.getElementById('resume-button');
+    const calibrateBtn = document.getElementById('calibrate-button');
+
+    if (settingsBtn && settingsMenu) {
+      settingsBtn.addEventListener('click', () => {
+        this.isPaused = true;
+        settingsMenu.style.display = 'flex';
+      });
+    }
+
+    if (resumeBtn && settingsMenu) {
+      resumeBtn.addEventListener('click', () => {
+        this.isPaused = false;
+        settingsMenu.style.display = 'none';
+      });
+    }
+
+    if (calibrateBtn) {
+      calibrateBtn.addEventListener('click', () => {
+        this.inputController.calibrateGyro();
+        // Visual confirmation feedback
+        calibrateBtn.textContent = 'CALIBRATED!';
+        calibrateBtn.style.color = '#ffb700';
+        calibrateBtn.style.borderColor = '#ffb700';
+        setTimeout(() => {
+          calibrateBtn.textContent = 'CALIBRATE SCREEN';
+          calibrateBtn.style.color = '#00ffaa';
+          calibrateBtn.style.borderColor = '#00ffaa';
+        }, 1500);
+      });
+    }
 
     // === Sky Group: Groups stars & suns so they move together with camera ===
     this.skyGroup = new THREE.Group();
@@ -186,6 +222,12 @@ export class GameManager {
   }
 
   update(deltaTime, currentTime) {
+    if (this.isPaused) {
+      this.inputController.consumeMovement();
+      this.inputController.clearDeltas();
+      return;
+    }
+
     deltaTime = Math.min(deltaTime, 0.05);
 
     // Consume accumulated input — cap mouse deltas before any physics
