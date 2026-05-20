@@ -9,12 +9,14 @@ export class PlayerShip {
     this.roll  = 0;
 
     this.velocity = new THREE.Vector3();
-    this.camera.position.set(0, 110, 0);
+    const rx = (Math.random() - 0.5) * 10000;
+    const rz = (Math.random() - 0.5) * 10000;
+    this.camera.position.set(rx, 480, rz);  // Random spawn height
     this.isAboveMaxAlt = false;
 
-    this.minThrottle = 40;
-    this.maxThrottle = 175;
-    this.throttle    = 100;
+    this.minThrottle = 60;
+    this.maxThrottle = 260;
+    this.throttle    = 140;
 
     this.gravity   = -12;
     this.turnSpeed = 1.5;
@@ -43,6 +45,9 @@ export class PlayerShip {
     this.isStalled     = false;
     this.stallRecoveryPitch = -0.3;
 
+    // Death state
+    this.isDying       = false;
+
     // Terrain
     this.terrainWarning  = false;
     this.terrainCrashed  = false;
@@ -61,7 +66,34 @@ export class PlayerShip {
     this.shakeIntensity = intensity;
   }
 
+  die() {
+    if (this.isDying) return;
+    this.isDying = true;
+    this.dieFromHigh = this.altitude > 800;
+    this.velocity.y -= this.dieFromHigh ? 250 : 80; // Harder initial downward jolt
+  }
+
   update(deltaTime, inputController, terrain) {
+    if (this.isDying) {
+      // Uncontrollable plunge to the ground
+      const speedMult = this.dieFromHigh ? 3.5 : 1.2;
+      // Interpolate pitch directly towards vertical nose dive
+      this.pitch = THREE.MathUtils.lerp(this.pitch, -Math.PI / 2, 3.0 * speedMult * deltaTime); 
+      this.roll += 6.0 * speedMult * deltaTime; // spin out of control
+      this.velocity.y -= 800 * speedMult * deltaTime; // fall fast
+      
+      const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
+      const forward = new THREE.Vector3(0, 0, -1).applyEuler(euler);
+      const targetVelocity = forward.clone().multiplyScalar(this.throttle * (this.dieFromHigh ? 3.0 : 1.5));
+      this.velocity.lerp(targetVelocity, 3.5 * deltaTime);
+      
+      this.camera.position.addScaledVector(this.velocity, deltaTime);
+      this._updateCamera(deltaTime);
+      this._updateShake(deltaTime);
+      this._checkTerrain(terrain, deltaTime);
+      return;
+    }
+
     if (this.terrainCrashed) return;
 
     this._handleInput(deltaTime, inputController);
@@ -93,11 +125,11 @@ export class PlayerShip {
       this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
     }
 
-    this.throttle = 110;
+    this.throttle = 140;
     if (input.isBoosting() && !this.staminaDepleted) {
       this.isBoosting  = true;
-      this.targetFOV   = this.boostFOV;
-      this.throttle    = 220;
+      this.targetFOV = this.baseFOV + 20;
+      this.throttle  = 360;
     } else {
       this.isBoosting = false;
       this.targetFOV  = this.baseFOV;
@@ -174,20 +206,23 @@ export class PlayerShip {
     const terrainHeight = terrain.getHeightAt(this.camera.position.x, this.camera.position.z);
     this.altitude        = this.camera.position.y - terrainHeight;
     this.terrainWarning  = this.altitude < 40;
-    this.isAboveMaxAlt   = this.camera.position.y > 500;
+    this.isAboveMaxAlt   = this.camera.position.y > 1500;  // Raised from 800
     if (this.isAboveMaxAlt) this.hp -= 5 * deltaTime;
     if (this.altitude < 2) this.terrainCrashed = true;
   }
 
   reset() {
-    this.camera.position.set(0, 110, 0);
+    const rx = (Math.random() - 0.5) * 10000;
+    const rz = (Math.random() - 0.5) * 10000;
+    this.camera.position.set(rx, 480, rz);  // Match new spawn height
     this.pitch = 0; this.yaw = 0; this.roll = 0;
     this.velocity.set(0, 0, 0);
-    this.throttle        = 100;
+    this.throttle        = 140;
     this.stamina         = this.maxStamina;
     this.staminaDepleted = false;
     this.isBoosting      = false;
     this.isStalled       = false;
+    this.isDying         = false;
     this.stallTimer      = 0;
     this.terrainWarning  = false;
     this.terrainCrashed  = false;

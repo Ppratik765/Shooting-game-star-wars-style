@@ -8,60 +8,115 @@ export class WeaponSystem {
     this.uiManager = uiManager;
 
     // Charge system
-    this.maxCharge = 80;   // Slightly less max capacity as requested
+    this.maxCharge = 70;
     this.charge = this.maxCharge;
     this.chargePerShot = 1.2;
     this.chargeRegenRate = 14;
     this.chargeDepleted = false;
 
     // Targeting system
-    this.projectileSpeed = 900;  // Lasers are light — very fast and perfectly straight
-    this.fireRate = 0.10;
+    this.projectileSpeed = 1100;  // Slightly slower than hit-scan
+    this.fireRate = 0.12;         // Adjusted fire rate
     this.lastFireTime = 0;
     this.lockedEnemy = null;
 
     // Object pool
-    this.poolSize = 80;
+    this.poolSize = 70;
     this.pool = [];
 
-    // Laser bolt geometry: long thin cylinder (energy bolt look)
-    const geom = new THREE.CylinderGeometry(0.35, 0.35, 28, 6, 1);
-    geom.rotateX(Math.PI / 2); // align along Z axis
+    // Laser bolt geometry: thin retro-futuristic CRT laser
+    const segments = 8;
+    const boltLength = 160;
+    const boltRadius = 0.15;
+    const geom = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLength, segments, 6);
+    geom.rotateX(-Math.PI / 2);
+    this.boltGeom = geom;
 
-    // Each projectile gets its own material for per-projectile glow
+    // Inner core geometry (smaller cylinder for hot plasma core)
+    const coreGeom = new THREE.CylinderGeometry(boltRadius * 0.3, boltRadius * 0.3, boltLength, 6, 1);
+    coreGeom.rotateX(-Math.PI / 2);
+    this.coreGeom = coreGeom;
+
+    // Glow cylinder mesh overlay for plasma effect
+    const glowGeom = new THREE.CylinderGeometry(boltRadius * 4.5, boltRadius * 4.5, boltLength * 1.05, 8, 1);
+    glowGeom.rotateX(-Math.PI / 2);
+    this.glowGeom = glowGeom;
+
+    // Shared Materials for performance
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff3300,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1.0,
+      blending: THREE.AdditiveBlending
+    });
+
+    // Shared ShaderMaterial for retro-futuristic plasma glow with scanlines
+    this.uniforms = { uTime: { value: 0 } };
+    const glowMat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vLocalPos;
+        void main() {
+          vUv = uv;
+          vLocalPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+        varying vec3 vLocalPos;
+        void main() {
+          // Retro scanlines moving along Z (which is the length of the cylinder)
+          float scanline = sin(vLocalPos.z * 1.5 - uTime * 30.0) * 0.5 + 0.5;
+          
+          // RGB Split Style Holographic color
+          vec3 baseColor = vec3(1.0, 0.4, 0.0); // Orange-Red
+          vec3 altColor = vec3(1.0, 0.0, 0.3);  // Magenta-Red shift
+          vec3 finalColor = mix(baseColor, altColor, scanline);
+          
+          // Fading at ends of cylinder
+          float lengthFade = smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
+          
+          gl_FragColor = vec4(finalColor * 2.5, lengthFade * 0.9 * scanline);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
     for (let i = 0; i < this.poolSize; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xff4400,
-        transparent: true,
-        opacity: 0.95
-      });
-      const mesh = new THREE.Mesh(geom, mat);
+      const mesh = new THREE.Mesh(this.boltGeom, mat);
       mesh.visible = false;
       this.scene.add(mesh);
 
-      // Glow sprite overlay for bolt
-      const glowMat = new THREE.SpriteMaterial({
-        color: 0xff6600,
-        transparent: true,
-        opacity: 0.5,
-        blending: THREE.AdditiveBlending
-      });
-      const glow = new THREE.Sprite(glowMat);
-      glow.scale.set(3, 30, 1);
+      const coreMesh = new THREE.Mesh(this.coreGeom, coreMat);
+      coreMesh.visible = false;
+      this.scene.add(coreMesh);
+
+      const glow = new THREE.Mesh(this.glowGeom, glowMat);
       glow.visible = false;
       this.scene.add(glow);
 
-      const light = new THREE.PointLight(0xff5500, 0, 60);
-      this.scene.add(light);
-
       this.pool.push({
-        mesh, glow, light,
+        mesh, coreMesh, glow,
         active: false,
         velocity: new THREE.Vector3(),
         direction: new THREE.Vector3(),
         trackingTarget: null,
         age: 0,
-        maxAge: 2.5
+        maxAge: 1.0
       });
     }
 
@@ -69,6 +124,10 @@ export class WeaponSystem {
   }
 
   update(deltaTime, inputController, currentTime, playerVelocity) {
+    if (this.uniforms) {
+      this.uniforms.uTime.value += deltaTime;
+    }
+
     // Charge regen
     if (!inputController.isFiring()) {
       this.charge = Math.min(this.maxCharge, this.charge + this.chargeRegenRate * deltaTime);
@@ -111,37 +170,35 @@ export class WeaponSystem {
       }
     }
 
-    // Update projectiles — perfectly straight, no homing (lasers = light)
+    // Update projectiles
     for (let i = 0; i < this.poolSize; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
       p.age += deltaTime;
       if (p.age > p.maxAge) { this._deactivate(p); continue; }
 
-      // Pure straight-line movement — lasers don't curve
+      // Pure straight-line movement
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
+      p.coreMesh.position.copy(p.mesh.position);
+      p.coreMesh.quaternion.copy(p.mesh.quaternion);
       p.glow.position.copy(p.mesh.position);
-      p.light.position.copy(p.mesh.position);
+      p.glow.quaternion.copy(p.mesh.quaternion);
 
       this._checkCollisions(p);
     }
   }
 
   fire(playerVelocity) {
-    // Find two free projectiles
     const toSpawn = [];
     for (let i = 0; i < this.poolSize && toSpawn.length < 2; i++) {
       if (!this.pool[i].active) toSpawn.push(this.pool[i]);
     }
     if (toSpawn.length < 2) return;
 
-    // Aim direction — always perfectly straight from camera center
     let aimDir;
-
     if (this.lockedEnemy && this.lockedEnemy.active) {
       aimDir = this.lockedEnemy.mesh.position.clone().sub(this.camera.position).normalize();
     } else {
-      // Use crosshair NDC position
       const crosshairPos = this.uiManager.currentCrosshairPos;
       const ndcX = (crosshairPos.x / window.innerWidth) * 2 - 1;
       const ndcY = -(crosshairPos.y / window.innerHeight) * 2 + 1;
@@ -149,33 +206,24 @@ export class WeaponSystem {
       aimDir = this.raycaster.ray.direction.clone().normalize();
     }
 
-    // Laser velocity: straight line, no player velocity added (lasers = pure light speed)
     const laserVel = aimDir.clone().multiplyScalar(this.projectileSpeed);
 
-    // Spawn from extreme left/right edges of the screen in world space
-    // Project screen-edge points into world space at a near distance
-    const near = 5.0; // distance from camera for spawn
+    const near = 5.0;
     const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-    const camUp    = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
-    const camFwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
-    // Extreme left/right: push to screen edge using FOV math
     const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
     const aspect = window.innerWidth / window.innerHeight;
-    const halfW  = Math.tan(fovRad * 0.5) * aspect * near;
-    const halfH  = Math.tan(fovRad * 0.5) * near * 0.05; // Slightly below center
+    const halfW = Math.tan(fovRad * 0.5) * aspect * near;
 
-    // Left laser origin: left edge of screen, slight below center
     const originL = this.camera.position.clone()
       .addScaledVector(camFwd, near)
-      .addScaledVector(camRight, -halfW)
-      .addScaledVector(camUp, -halfH);
+      .addScaledVector(camRight, -halfW * 0.95);
 
-    // Right laser origin: right edge of screen, slight below center
     const originR = this.camera.position.clone()
       .addScaledVector(camFwd, near)
-      .addScaledVector(camRight, halfW)
-      .addScaledVector(camUp, -halfH);
+      .addScaledVector(camRight, halfW * 0.95);
 
     this._activateProjectile(toSpawn[0], originL, laserVel, aimDir);
     this._activateProjectile(toSpawn[1], originR, laserVel, aimDir);
@@ -187,38 +235,51 @@ export class WeaponSystem {
 
     p.mesh.position.copy(origin);
     p.mesh.visible = true;
-    // Orient mesh along travel direction
+    // Orient mesh: lookAt points local -Z at target — cylinder is pre-aligned along -Z
     const target = origin.clone().add(direction);
     p.mesh.lookAt(target);
-    p.mesh.rotateX(Math.PI / 2); // re-align cylinder
+
+    p.coreMesh.position.copy(origin);
+    p.coreMesh.visible = true;
+    p.coreMesh.quaternion.copy(p.mesh.quaternion);
 
     p.glow.position.copy(origin);
+    p.glow.quaternion.copy(p.mesh.quaternion);
     p.glow.visible = true;
 
     p.velocity.copy(velocity);
     p.direction.copy(direction);
     p.trackingTarget = null;
 
-    p.light.position.copy(origin);
-    p.light.intensity = 120;
-    p.light.distance = 80;
   }
 
   _deactivate(p) {
     p.active = false;
     p.mesh.visible = false;
+    p.coreMesh.visible = false;
     p.glow.visible = false;
-    p.light.intensity = 0;
     p.trackingTarget = null;
   }
 
   _checkCollisions(projectile) {
     const enemies = this.enemyManager.getEnemies();
+
+    // Create a line segment representing the bullet's volume this frame
+    // Length is 160, plus we add a slight look-ahead for speed tunneling
+    const tail = projectile.mesh.position.clone().addScaledVector(projectile.direction, -160);
+    const head = projectile.mesh.position.clone().addScaledVector(projectile.direction, 100);
+    const line = new THREE.Line3(tail, head);
+    const closestPoint = new THREE.Vector3();
+
     for (let i = 0; i < enemies.length; i++) {
       const enemy = enemies[i];
-      if (!enemy.active) continue;
-      const dist = projectile.mesh.position.distanceTo(enemy.mesh.position);
-      if (dist < enemy.radius) {
+      if (!enemy.active || enemy.dying) continue;
+
+      line.closestPointToPoint(enemy.mesh.position, true, closestPoint);
+      const dist = closestPoint.distanceTo(enemy.mesh.position);
+
+      // Increased leeway for easier hitting and fast gameplay
+      if (dist < enemy.radius + 8) {
         this.enemyManager.damageEnemy(enemy, 1);
         this._deactivate(projectile);
         return;
@@ -233,7 +294,7 @@ export class WeaponSystem {
     let closestDist = Infinity;
 
     for (const enemy of enemies) {
-      if (!enemy.active) continue;
+      if (!enemy.active || enemy.dying) continue;
       const distToShip = enemy.mesh.position.distanceTo(this.camera.position);
       if (distToShip > 1000) continue;
       const sphere = new THREE.Sphere(enemy.mesh.position, enemy.radius * 3.0);

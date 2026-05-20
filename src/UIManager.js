@@ -42,8 +42,8 @@ export class UIManager {
 
     // === Sonar radar state ===
     this.sonarTimer    = 0;
-    this.sonarInterval = 3.0;    // seconds between sonar pings
-    this.sonarBlips    = [];     // cached blip positions from last ping
+    this.sonarInterval = 3.0;
+    this.sonarBlips    = [];
 
     window.addEventListener('resize', () => {
       this.targetCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
@@ -74,35 +74,41 @@ export class UIManager {
 
   _drawArcHUD(chargeState, playerState) {
     const ctx = this.arcCtx;
-    const cx  = window.innerWidth  / 2;
-    const cy  = window.innerHeight / 2;
+    // Arc center follows the crosshair position
+    const cx  = this.currentCrosshairPos.x;
+    const cy  = this.currentCrosshairPos.y;
     const R   = 70; // radius from crosshair center
+
+    // Calculate rotation angle in radians based on crosshair X position
+    const dx = this.currentCrosshairPos.x - window.innerWidth / 2;
+    const maxRot = 1.2; // ~70 degrees max rotation
+    const rotVal = (dx / (window.innerWidth / 2)) * maxRot;
 
     ctx.clearRect(0, 0, this.arcCanvas.width, this.arcCanvas.height);
 
     // --- LEFT ARC: Engine / Stamina ---
     const staminaRatio = playerState.stamina / playerState.maxStamina;
     this._drawArc(ctx, cx, cy, R,
-      Math.PI * 0.75,  // start angle (lower left)
-      Math.PI * 1.25,  // end angle (upper left)
+      Math.PI * 0.75 + rotVal,
+      Math.PI * 1.25 + rotVal,
       staminaRatio,
       playerState.staminaDepleted ? '#ff4400' : '#00aaff',
       'BOOST',
       Math.floor(staminaRatio * 100) + '%',
-      -1  // label on left side
+      -1
     );
 
     // --- RIGHT ARC: Charge ---
     if (chargeState) {
       const chargeRatio = chargeState.charge / chargeState.maxCharge;
       this._drawArc(ctx, cx, cy, R,
-        Math.PI * 1.75, // start angle (upper right)
-        Math.PI * 2.25, // end angle (lower right)
+        Math.PI * 1.75 + rotVal,
+        Math.PI * 2.25 + rotVal,
         chargeRatio,
         chargeState.chargeDepleted ? '#ff2200' : '#ffaa00',
         'CHRG',
         Math.floor(chargeRatio * 100) + '%',
-        1   // label on right side
+        1
       );
     }
   }
@@ -132,9 +138,8 @@ export class UIManager {
     }
 
     // Label text
-    const labelAngle  = (startAngle + endAngle) / 2 + Math.PI; // opposite side
     const labelRadius = R + 20;
-    const lx = cx + Math.cos(startAngle + arcSpan * 0.5) * labelRadius * (side < 0 ? 1 : 1);
+    const lx = cx + Math.cos(startAngle + arcSpan * 0.5) * labelRadius;
     const ly = cy + Math.sin(startAngle + arcSpan * 0.5) * labelRadius;
 
     ctx.font      = '11px VT323, monospace';
@@ -178,7 +183,7 @@ export class UIManager {
     if (this.staminaFill) this.staminaFill.parentElement.parentElement.style.display = 'none';
     if (this.chargeFill)  this.chargeFill.parentElement.parentElement.style.display  = 'none';
 
-    // Draw arc HUD
+    // Draw arc HUD (follows crosshair)
     this._drawArcHUD(chargeState, playerState);
 
     // Boost vignette — BLUE
@@ -225,15 +230,10 @@ export class UIManager {
 
     let isLockedEnemyVisible = false;
 
-    // === Sonar: only update blips on ping interval ===
-    // (sonarTimer is updated in update() — we pass enemies list here)
-    // We refresh sonarBlips periodically and render from cache
-
-    // Rebuild enemy HP bars + collect radar positions
     const liveBlips = [];
 
     for (const enemy of enemies) {
-      if (enemy.active) {
+      if (enemy.active && !enemy.dying) {
         const pos = enemy.mesh.position.clone().project(camera);
         if (pos.z < 1 && pos.z > 0) {
           if (!this.hpBars[enemy.id]) {
@@ -282,32 +282,52 @@ export class UIManager {
       }
     }
 
-    // Sonar: update cached blips every interval, then render them with fade
-    this.sonarTimer = (this.sonarTimer || 0) + (1 / 60); // approximate dt
-    if (this.sonarTimer >= this.sonarInterval) {
-      this.sonarTimer = 0;
-      this.sonarBlips = liveBlips.slice();
-      // Trigger sonar ping animation
+    // Sonar sweep aesthetic trigger
+    const now = Date.now();
+    if (!this.lastSonarTime) this.lastSonarTime = now;
+    if (now - this.lastSonarTime >= 3000) {
+      this.lastSonarTime = now;
       const radar = document.getElementById('radar-container');
       if (radar) {
         radar.classList.remove('sonar-ping');
-        void radar.offsetWidth; // reflow
+        void radar.offsetWidth;
         radar.classList.add('sonar-ping');
       }
     }
 
-    // Render cached sonar blips
-    this.radarBlips.innerHTML = '';
-    for (const blip of (this.sonarBlips || [])) {
-      const el = document.createElement('div');
-      el.className = 'radar-blip';
-      el.style.left = `${90 + blip.rX}px`;
-      el.style.top  = `${90 + blip.rY}px`;
-      if (blip.isLocked) {
-        el.style.background  = '#00ffaa';
-        el.style.boxShadow   = '0 0 5px #00ffaa';
+    // Reuse existing blip elements to avoid DOM churn and improve performance
+    const blipElements = this.radarBlips.children;
+    const diff = liveBlips.length - blipElements.length;
+
+    if (diff > 0) {
+      for (let i = 0; i < diff; i++) {
+        const el = document.createElement('div');
+        el.className = 'radar-blip';
+        this.radarBlips.appendChild(el);
       }
-      this.radarBlips.appendChild(el);
+    } else if (diff < 0) {
+      for (let i = 0; i < -diff; i++) {
+        this.radarBlips.removeChild(this.radarBlips.lastChild);
+      }
+    }
+
+    for (let i = 0; i < liveBlips.length; i++) {
+      const blip = liveBlips[i];
+      const el = blipElements[i];
+
+      // percentage positioning: center is 50%. Clamp/map nominal 90px half-width to 50%
+      const pctX = 50 + (blip.rX / 90) * 50;
+      const pctY = 50 + (blip.rY / 90) * 50;
+      el.style.left = `${pctX}%`;
+      el.style.top  = `${pctY}%`;
+
+      if (blip.isLocked) {
+        el.style.background = '#00ffaa';
+        el.style.boxShadow  = '0 0 5px #00ffaa';
+      } else {
+        el.style.background = '';
+        el.style.boxShadow  = '';
+      }
     }
 
     if (!isLockedEnemyVisible) {

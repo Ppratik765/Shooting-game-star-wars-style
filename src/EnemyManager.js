@@ -10,8 +10,8 @@ export class EnemyManager {
     this.enemies = [];
     this.maxEnemies = 20;
 
-    // Build opaque/solid TIE variant meshes (not wireframe)
-    this.tieMeshes = this._buildSolidTIEVariants();
+    // Build translucent red wireframe TIE variants
+    this.tieMeshes = this._buildWireframeTIEVariants();
 
     for (let i = 0; i < this.maxEnemies; i++) {
       const variantIdx = i % 4;
@@ -21,9 +21,12 @@ export class EnemyManager {
       this.enemies.push({
         mesh,
         active: false,
+        dying: false,         // NEW: projectile-motion death state
+        dyingTimer: 0,
         hp: 5,
         maxHp: 5,
         velocity: new THREE.Vector3(),
+        angularVel: new THREE.Vector3(), // tumble rotation during death
         radius: 12.0,
         id: i,
         variant: variantIdx,
@@ -47,16 +50,44 @@ export class EnemyManager {
     this.onEnemyKilled = null;
     this.onPlayerHit = null;
 
+    // Diamond death markers — persist for session
+    this.deathMarkers = [];
+    this.markerMat = new THREE.SpriteMaterial({
+      color: 0xffdd00,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending
+    });
+
     // Enemy projectile pool
     this.enemyProjectiles = [];
     this.maxEnemyProjectiles = 60;
-    // Slightly larger, glowing green bolts
-    const bulletGeom = new THREE.CylinderGeometry(0.5, 0.5, 8, 5);
-    bulletGeom.rotateX(Math.PI / 2);
-    const bulletMat = new THREE.MeshBasicMaterial({ color: 0x00ff44 });
+    // Green horizontal cylinder bolts with irregularities
+    const bulletGeom = new THREE.CylinderGeometry(0.5, 0.5, 12, 6, 3);
+    bulletGeom.rotateX(-Math.PI / 2);  // align along -Z for lookAt
+    // Add vertex displacement for imperfections
+    const bPos = bulletGeom.attributes.position;
+    for (let i = 0; i < bPos.count; i++) {
+      const x = bPos.getX(i);
+      const y = bPos.getY(i);
+      const dist = Math.sqrt(x * x + y * y);
+      if (dist > 0.01) {
+        const noise = 1.0 + (Math.random() - 0.5) * 0.2;
+        bPos.setX(i, x * noise);
+        bPos.setY(i, y * noise);
+      }
+    }
+    bPos.needsUpdate = true;
+    bulletGeom.computeVertexNormals();
+
+    const bulletMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff44,
+      transparent: true,
+      opacity: 0.9
+    });
 
     for (let i = 0; i < this.maxEnemyProjectiles; i++) {
-      const mesh = new THREE.Mesh(bulletGeom, bulletMat);
+      const mesh = new THREE.Mesh(bulletGeom, bulletMat.clone());
       mesh.visible = false;
       this.scene.add(mesh);
       this.enemyProjectiles.push({
@@ -69,115 +100,83 @@ export class EnemyManager {
     }
   }
 
-  // Build solid (opaque) TIE fighter meshes instead of wireframes
-  _buildSolidTIEVariants() {
-    const hullMat = new THREE.MeshPhongMaterial({
-      color: 0x333355,
-      emissive: 0x110022,
-      shininess: 60,
-      side: THREE.FrontSide
-    });
-    const wingMat = new THREE.MeshPhongMaterial({
-      color: 0x222244,
-      emissive: 0x0a0018,
-      shininess: 40,
+  // Build translucent red wireframe TIE fighter meshes — massively cheaper than solid
+  _buildWireframeTIEVariants() {
+    const wireOpts = {
+      wireframe: true,
       transparent: true,
-      opacity: 0.90,
-      side: THREE.DoubleSide
-    });
-    const panelMat = new THREE.MeshPhongMaterial({
-      color: 0x112233,
-      emissive: 0x001122,
-      shininess: 80,
-      side: THREE.DoubleSide
+      opacity: 0.7,
+      color: 0xff2200
+    };
+    const makeWireMat = () => new THREE.MeshBasicMaterial({ ...wireOpts });
+    const makeGlowMat = () => new THREE.MeshBasicMaterial({
+      ...wireOpts,
+      color: 0xff4400,
+      opacity: 0.4,
+      blending: THREE.AdditiveBlending
     });
 
     const variants = [];
 
-    // Add ambient light for the solid meshes (do this once here, not per mesh)
-    const ambLight = new THREE.AmbientLight(0x333366, 1.0);
-    this.scene.add(ambLight);
-    const dirLight = new THREE.DirectionalLight(0x6688ff, 1.5);
-    dirLight.position.set(0, 1, 0.5);
-    this.scene.add(dirLight);
-
     // --- Variant 0: Standard TIE Fighter ---
     const tie0 = new THREE.Group();
-    const sphere0 = new THREE.Mesh(new THREE.SphereGeometry(5, 12, 10), hullMat.clone());
-    // Hexagonal cockpit window glow
-    const windowMat0 = new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.7 });
-    const window0 = new THREE.Mesh(new THREE.CircleGeometry(2.5, 6), windowMat0);
+    const sphere0 = new THREE.Mesh(new THREE.SphereGeometry(5, 8, 6), makeWireMat());
+    const window0 = new THREE.Mesh(new THREE.CircleGeometry(2.5, 6), makeGlowMat());
     window0.position.z = 5.1;
     tie0.add(sphere0, window0);
-
-    // Wings: flat panels
-    const wingGeom0 = new THREE.CylinderGeometry(9.5, 9.5, 0.4, 8);
-    const lw0 = new THREE.Mesh(wingGeom0, wingMat.clone());
+    const wingGeom0 = new THREE.CylinderGeometry(9.5, 9.5, 0.4, 6);
+    const lw0 = new THREE.Mesh(wingGeom0, makeWireMat());
     lw0.rotation.z = Math.PI / 2; lw0.position.x = -8;
-    const rw0 = new THREE.Mesh(wingGeom0, wingMat.clone());
+    const rw0 = new THREE.Mesh(wingGeom0, makeWireMat());
     rw0.rotation.z = Math.PI / 2; rw0.position.x = 8;
-    // Wing struts
-    const strutGeom0 = new THREE.CylinderGeometry(0.6, 0.6, 16, 5);
-    const ls0 = new THREE.Mesh(strutGeom0, panelMat.clone());
+    const strutGeom0 = new THREE.CylinderGeometry(0.6, 0.6, 16, 4);
+    const ls0 = new THREE.Mesh(strutGeom0, makeWireMat());
     ls0.rotation.z = Math.PI / 2;
     tie0.add(lw0, rw0, ls0);
-
-    // Panel grid lines as thin boxes on wings
-    for (let r = 0; r < 3; r++) {
-      const lineGeom = new THREE.BoxGeometry(0.2, 0.5, 16);
-      const lineL = new THREE.Mesh(lineGeom, new THREE.MeshBasicMaterial({ color: 0x4466aa }));
-      lineL.position.set(-8, (r - 1) * 3.2, 0);
-      const lineR = lineL.clone(); lineR.position.x = 8;
-      tie0.add(lineL, lineR);
-    }
     variants.push(tie0);
 
     // --- Variant 1: TIE Interceptor ---
     const tie1 = new THREE.Group();
-    const hull1 = new THREE.Mesh(new THREE.SphereGeometry(4.5, 12, 10), hullMat.clone());
-    const win1 = new THREE.Mesh(new THREE.CircleGeometry(2, 6), new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8 }));
+    const hull1 = new THREE.Mesh(new THREE.SphereGeometry(4.5, 8, 6), makeWireMat());
+    const win1 = new THREE.Mesh(new THREE.CircleGeometry(2, 6), makeGlowMat());
     win1.position.z = 4.6;
     tie1.add(hull1, win1);
-
-    // Swept delta wings
     const wingShape1 = new THREE.Shape();
     wingShape1.moveTo(0, 10); wingShape1.lineTo(5, 0); wingShape1.lineTo(0, -10);
     wingShape1.lineTo(-5, 0); wingShape1.closePath();
-    const extSettings1 = { depth: 0.4, bevelEnabled: false };
-    const wingGeomEx1 = new THREE.ExtrudeGeometry(wingShape1, extSettings1);
-    const lw1 = new THREE.Mesh(wingGeomEx1, wingMat.clone());
+    const wingGeomEx1 = new THREE.ExtrudeGeometry(wingShape1, { depth: 0.4, bevelEnabled: false });
+    const lw1 = new THREE.Mesh(wingGeomEx1, makeWireMat());
     lw1.position.x = -7; lw1.rotation.y = Math.PI / 2;
-    const rw1 = new THREE.Mesh(wingGeomEx1, wingMat.clone());
+    const rw1 = new THREE.Mesh(wingGeomEx1, makeWireMat());
     rw1.position.x = 7; rw1.rotation.y = Math.PI / 2;
     tie1.add(lw1, rw1);
     variants.push(tie1);
 
     // --- Variant 2: TIE Bomber (double hull) ---
     const tie2 = new THREE.Group();
-    const hull2a = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 8), hullMat.clone());
+    const hull2a = new THREE.Mesh(new THREE.SphereGeometry(4.5, 8, 6), makeWireMat());
     hull2a.position.x = -4;
-    const hull2b = new THREE.Mesh(new THREE.CapsuleGeometry(3.5, 4, 8, 10), hullMat.clone());
+    const hull2b = new THREE.Mesh(new THREE.CapsuleGeometry(3.5, 4, 6, 6), makeWireMat());
     hull2b.position.x = 5; hull2b.rotation.z = Math.PI / 2;
-    const win2 = new THREE.Mesh(new THREE.CircleGeometry(1.8, 6), new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.7 }));
+    const win2 = new THREE.Mesh(new THREE.CircleGeometry(1.8, 6), makeGlowMat());
     win2.position.set(-4, 0, 4.6);
     tie2.add(hull2a, hull2b, win2);
-    const wingGeom2 = new THREE.CylinderGeometry(8.5, 8.5, 0.4, 8);
-    const lw2 = new THREE.Mesh(wingGeom2, wingMat.clone()); lw2.rotation.z = Math.PI / 2; lw2.position.x = -10;
-    const rw2 = new THREE.Mesh(wingGeom2, wingMat.clone()); rw2.rotation.z = Math.PI / 2; rw2.position.x = 12;
+    const wingGeom2 = new THREE.CylinderGeometry(8.5, 8.5, 0.4, 6);
+    const lw2 = new THREE.Mesh(wingGeom2, makeWireMat()); lw2.rotation.z = Math.PI / 2; lw2.position.x = -10;
+    const rw2 = new THREE.Mesh(wingGeom2, makeWireMat()); rw2.rotation.z = Math.PI / 2; rw2.position.x = 12;
     tie2.add(lw2, rw2);
     variants.push(tie2);
 
     // --- Variant 3: TIE Advanced (bent wings) ---
     const tie3 = new THREE.Group();
-    const hull3 = new THREE.Mesh(new THREE.SphereGeometry(5, 14, 10), hullMat.clone());
-    const win3 = new THREE.Mesh(new THREE.CircleGeometry(2.5, 8), new THREE.MeshBasicMaterial({ color: 0xff0044, transparent: true, opacity: 0.85 }));
+    const hull3 = new THREE.Mesh(new THREE.SphereGeometry(5, 8, 6), makeWireMat());
+    const win3 = new THREE.Mesh(new THREE.CircleGeometry(2.5, 6), makeGlowMat());
     win3.position.z = 5.1;
     tie3.add(hull3, win3);
-    // Angled panel wings
     const wingGeom3 = new THREE.BoxGeometry(0.4, 13, 6.5);
-    const lw3 = new THREE.Mesh(wingGeom3, wingMat.clone());
+    const lw3 = new THREE.Mesh(wingGeom3, makeWireMat());
     lw3.position.set(-7, 0, 0); lw3.rotation.z = 0.3;
-    const rw3 = new THREE.Mesh(wingGeom3, wingMat.clone());
+    const rw3 = new THREE.Mesh(wingGeom3, makeWireMat());
     rw3.position.set(7, 0, 0); rw3.rotation.z = -0.3;
     tie3.add(lw3, rw3);
     variants.push(tie3);
@@ -194,21 +193,47 @@ export class EnemyManager {
 
     const playerPos  = this.playerShip.camera.position;
     const playerVel  = this.playerShip.velocity;
-    // Predict where player will be in ~2.5 seconds
     const PREDICT_TIME = 2.5;
 
     for (let i = 0; i < this.maxEnemies; i++) {
       const enemy = this.enemies[i];
       if (!enemy.active) continue;
 
+      // === DYING STATE: projectile motion, tumble, crash ===
+      if (enemy.dying) {
+        enemy.dyingTimer += deltaTime;
+        // Gravity pulls down hard so it crashes quickly
+        enemy.velocity.y -= 250.0 * deltaTime;
+        enemy.mesh.position.addScaledVector(enemy.velocity, deltaTime);
+        // Tumble rotation
+        enemy.mesh.rotation.x += enemy.angularVel.x * deltaTime;
+        enemy.mesh.rotation.y += enemy.angularVel.y * deltaTime;
+        enemy.mesh.rotation.z += enemy.angularVel.z * deltaTime;
+
+        // Check terrain crash
+        if (this.terrain) {
+          const eH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
+          if (enemy.mesh.position.y <= eH + 2) {
+            // Crash into terrain!
+            enemy.mesh.position.y = eH;
+            this._crashEnemy(enemy);
+            continue;
+          }
+        }
+        // Timeout after 8 seconds
+        if (enemy.dyingTimer > 8.0) {
+          this._crashEnemy(enemy);
+        }
+        continue; // skip normal AI
+      }
+
       // --- Predictive interception ---
+      const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
       const predictedPos = playerPos.clone().addScaledVector(playerVel, PREDICT_TIME);
 
-      // If in formation and following a leader, adjust target
       let targetPos = predictedPos.clone();
 
-      if (enemy.formationLeader && enemy.formationLeader.active) {
-        // Offset from leader in world space
+      if (enemy.formationLeader && enemy.formationLeader.active && !enemy.formationLeader.dying) {
         const leaderPos = enemy.formationLeader.mesh.position;
         const leaderFwd = new THREE.Vector3();
         enemy.formationLeader.mesh.getWorldDirection(leaderFwd);
@@ -218,14 +243,12 @@ export class EnemyManager {
           .addScaledVector(new THREE.Vector3(0, 1, 0), enemy.formationOffset.y)
           .addScaledVector(leaderFwd, enemy.formationOffset.z);
       } else {
-        // Strategy modifiers
         if (enemy.strategy === 'high_alt') {
           targetPos.y = playerPos.y + 130;
         } else if (enemy.strategy === 'trench' && this.terrain) {
           const eH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
           targetPos.y = eH + 22;
         } else if (enemy.strategy === 'flanker') {
-          // Circle around to the side of the player
           const angle = Date.now() * 0.0008 + i * 1.3;
           targetPos.x += Math.sin(angle) * 120;
           targetPos.z += Math.cos(angle) * 120;
@@ -233,21 +256,40 @@ export class EnemyManager {
         }
       }
 
-      // --- Terrain avoidance (look ahead) ---
+      // Overshoot / Fly-by maneuver: if close and charging at the player, lock a straight trajectory to zoom past
+      if (enemy.overshootTimer === undefined) {
+        enemy.overshootTimer = 0;
+        enemy.overshootDir = new THREE.Vector3();
+      }
+
+      if (distToPlayer < 250 && enemy.overshootTimer <= 0) {
+        const toPlayer = new THREE.Vector3().subVectors(playerPos, enemy.mesh.position).normalize();
+        const enemyFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.mesh.quaternion);
+        if (enemyFwd.dot(toPlayer) > 0.3) {
+          enemy.overshootTimer = 1.6 + Math.random() * 0.8; // Fly straight past for 1.6 to 2.4s
+          enemy.overshootDir.copy(enemyFwd);
+        }
+      }
+
+      if (enemy.overshootTimer > 0) {
+        enemy.overshootTimer -= deltaTime;
+        targetPos.copy(enemy.mesh.position).addScaledVector(enemy.overshootDir, 500);
+      }
+
+      // Terrain avoidance
       const lookAheadDist = 50;
       if (this.terrain) {
         const lookDir = targetPos.clone().sub(enemy.mesh.position).normalize();
         const lookAhead = enemy.mesh.position.clone().addScaledVector(lookDir, lookAheadDist);
         const terrainAhead = this.terrain.getHeightAt(lookAhead.x, lookAhead.z);
         if (lookAhead.y < terrainAhead + 30) {
-          // Pull up hard to avoid terrain
           targetPos.y += 80;
         }
       }
 
       const dir = new THREE.Vector3().subVectors(targetPos, enemy.mesh.position).normalize();
 
-      // Evasion maneuver (random weave)
+      // Evasion maneuver
       enemy.evasionTimer -= deltaTime;
       if (enemy.evasionTimer <= 0) {
         enemy.evasionTimer = 1.5 + Math.random() * 2.0;
@@ -258,20 +300,17 @@ export class EnemyManager {
         );
       }
 
-      const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
 
-      // Speed varies by strategy
-      let baseSpeed = 45 + i * 0.5;
-      if (enemy.strategy === 'interceptor') baseSpeed = 70;
-      if (enemy.strategy === 'flanker')     baseSpeed = 55;
+
+      let baseSpeed = 150 + i * 1.5;
+      if (enemy.strategy === 'interceptor') baseSpeed = 220;
+      if (enemy.strategy === 'flanker')     baseSpeed = 180;
 
       const targetVelocity = dir.clone().multiplyScalar(baseSpeed);
       targetVelocity.addScaledVector(enemy.evasionDir, 12);
-      // Smooth velocity change (momentum)
       enemy.velocity.lerp(targetVelocity, 2.5 * deltaTime);
 
       enemy.mesh.position.addScaledVector(enemy.velocity, deltaTime);
-      // Smoothly face movement direction
       if (enemy.velocity.lengthSq() > 0.01) {
         const lookTarget = enemy.mesh.position.clone().add(enemy.velocity.clone().normalize());
         enemy.mesh.lookAt(lookTarget);
@@ -293,7 +332,7 @@ export class EnemyManager {
         continue;
       }
 
-      // Enemy shooting with predictive aim
+      // Enemy shooting
       if (distToPlayer < 350) {
         enemy.fireTimer += deltaTime;
         if (enemy.fireTimer >= enemy.fireInterval) {
@@ -316,15 +355,13 @@ export class EnemyManager {
     proj.mesh.position.copy(enemy.mesh.position);
     proj.mesh.visible = true;
 
-    const bulletSpeed = 220;
-    // Predictive lead: aim where player will be
+    const bulletSpeed = 380;  // Faster enemy bullets
     const leadTime = enemy.mesh.position.distanceTo(playerPos) / bulletSpeed;
     const predictedPlayerPos = playerPos.clone().addScaledVector(playerVel, leadTime * 0.6);
 
     const aimDir = new THREE.Vector3().subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
 
-    // Stormtrooper miss spread, but slightly better than random
-    const spread = 0.22;
+    const spread = 0.07; // Much more accurate than 0.22, but still misses sometimes
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
     aimDir.z += (Math.random() - 0.5) * spread;
@@ -332,7 +369,6 @@ export class EnemyManager {
 
     proj.velocity.copy(aimDir).multiplyScalar(bulletSpeed);
     proj.mesh.lookAt(proj.mesh.position.clone().add(aimDir));
-    proj.mesh.rotateX(Math.PI / 2);
   }
 
   _updateEnemyProjectiles(deltaTime) {
@@ -345,7 +381,7 @@ export class EnemyManager {
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
 
       const dist = p.mesh.position.distanceTo(playerPos);
-      if (dist < 8) {
+      if (dist < 12) {
         p.active = false;
         p.mesh.visible = false;
         this.playerShip.hp -= 8;
@@ -359,7 +395,6 @@ export class EnemyManager {
     const playerFwd  = new THREE.Vector3();
     this.playerShip.camera.getWorldDirection(playerFwd);
 
-    // Pick a random spawn direction (not just straight ahead)
     const spawnAngle = Math.random() * Math.PI * 2;
     const spawnRadius = 500 + Math.random() * 200;
     const spawnDir = new THREE.Vector3(
@@ -371,7 +406,6 @@ export class EnemyManager {
     const basePos = playerPos.clone().addScaledVector(spawnDir, spawnRadius);
     basePos.y = playerPos.y + (Math.random() - 0.5) * 100 + 50;
 
-    // Formation types
     const formations = ['v_form', 'line', 'diamond', 'swarm'];
     const formType = formations[Math.floor(Math.random() * formations.length)];
     const count = 2 + Math.floor(Math.random() * 3);
@@ -379,7 +413,6 @@ export class EnemyManager {
     const freeEnemies = this.enemies.filter(e => !e.active).slice(0, count);
     if (freeEnemies.length === 0) return;
 
-    // Formation offsets
     const formOffsets = this._getFormationOffsets(formType, freeEnemies.length);
 
     const strategies = ['chase', 'high_alt', 'trench', 'flanker', 'interceptor'];
@@ -391,19 +424,21 @@ export class EnemyManager {
 
       if (this.terrain) {
         const tH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
-        enemy.mesh.position.y = Math.max(enemy.mesh.position.y, tH + 40);
+        enemy.mesh.position.y = Math.max(enemy.mesh.position.y, tH + 60);
       }
 
       enemy.hp = 5;
       enemy.maxHp = 5;
       enemy.active = true;
+      enemy.dying = false;
+      enemy.dyingTimer = 0;
       enemy.mesh.visible = true;
       enemy.fireTimer = Math.random() * 2;
       enemy.strategy = groupStrategy;
       enemy.evasionTimer = Math.random() * 2;
       enemy.velocity.set(0, 0, 0);
+      enemy.angularVel.set(0, 0, 0);
 
-      // Formation leadership
       if (s === 0) {
         enemy.isLeader = true;
         enemy.formationLeader = null;
@@ -447,7 +482,7 @@ export class EnemyManager {
   }
 
   damageEnemy(enemy, amount) {
-    if (!enemy.active) return;
+    if (!enemy.active || enemy.dying) return;
     enemy.hp -= amount;
     if (enemy.hp <= 0) this.killEnemy(enemy, false);
   }
@@ -460,14 +495,54 @@ export class EnemyManager {
         e.formationOffset.set(0, 0, 0);
       }
     }
-    enemy.active = false;
-    enemy.mesh.visible = false;
+
     if (crashedIntoTerrain) {
-      this.particleSystem.spawnGroundExplosion(enemy.mesh.position);
+      // Already at terrain — immediate crash
+      this._crashEnemy(enemy);
     } else {
-      this.particleSystem.spawnAirburst(enemy.mesh.position);
+      // Enter dying state — projectile motion fall
+      enemy.dying = true;
+      enemy.dyingTimer = 0;
+      // Throw the enemy forward faster than the player so the crash is visible
+      const playerFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
+      const pushSpeed = this.playerShip.velocity.length() + 150; // Fly ahead
+      enemy.velocity.copy(playerFwd).multiplyScalar(pushSpeed);
+      enemy.velocity.y -= 40; // Slight downward nudge to start falling
+      // Random tumble angular velocity
+      enemy.angularVel.set(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 4
+      );
     }
+
     if (this.onEnemyKilled) this.onEnemyKilled();
+  }
+
+  _crashEnemy(enemy) {
+    const crashPos = enemy.mesh.position.clone();
+
+    // Deactivate
+    enemy.active = false;
+    enemy.dying = false;
+    enemy.mesh.visible = false;
+
+    // Ground explosion + shockwave
+    this.particleSystem.spawnGroundExplosion(crashPos);
+    this.particleSystem.spawnShockwave(crashPos, this.terrain);
+
+    // Place diamond death marker
+    this._placeDeathMarker(crashPos);
+  }
+
+  _placeDeathMarker(position) {
+    // Create a small diamond sprite at crash location
+    const sprite = new THREE.Sprite(this.markerMat.clone());
+    sprite.position.copy(position);
+    sprite.position.y += 3; // slightly above terrain
+    sprite.scale.set(4, 4, 1);
+    this.scene.add(sprite);
+    this.deathMarkers.push(sprite);
   }
 
   getEnemies() { return this.enemies; }
@@ -475,16 +550,25 @@ export class EnemyManager {
   reset() {
     for (const e of this.enemies) {
       e.active = false;
+      e.dying = false;
+      e.dyingTimer = 0;
       e.mesh.visible = false;
       e.hp = 5;
       e.fireTimer = 0;
       e.formationLeader = null;
       e.velocity.set(0, 0, 0);
+      e.angularVel.set(0, 0, 0);
     }
     for (const p of this.enemyProjectiles) {
       p.active = false;
       p.mesh.visible = false;
     }
+    // Clear death markers
+    for (const marker of this.deathMarkers) {
+      this.scene.remove(marker);
+      marker.material.dispose();
+    }
+    this.deathMarkers.length = 0;
     this.spawnTimer = 0;
   }
 }

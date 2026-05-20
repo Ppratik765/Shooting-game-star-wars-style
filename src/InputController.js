@@ -16,6 +16,11 @@ export class InputController {
 
     this.prevMouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
+    // Per-frame accumulated mouse movement (capped)
+    this._frameMovementX = 0;
+    this._frameMovementY = 0;
+    this._maxDeltaPerFrame = 80; // cap to prevent huge spikes
+
     // Mobile state
     this.isMobile  = this._detectMobile();
     this.gyro = { beta: 0, gamma: 0, alpha: 0 };
@@ -184,8 +189,8 @@ export class InputController {
           this.lookJoystick.deltaX = dx;
           this.lookJoystick.deltaY = dy;
           // Update mouse position so crosshair moves
-          this.mouse.movementX += dx * 0.6;
-          this.mouse.movementY += dy * 0.6;
+          this._frameMovementX += dx * 0.6;
+          this._frameMovementY += dy * 0.6;
           this.mouse.x = t.clientX;
           this.mouse.y = t.clientY;
           // Reset start for relative delta
@@ -257,8 +262,8 @@ export class InputController {
       const pitchDelta = (this.gyro.beta  - this.gyroBaseBeta)  * 0.012;
       const yawDelta   = (this.gyro.gamma - this.gyroBaseGamma) * 0.012;
       // Gyro controls ship orientation via mouse movement simulation
-      this.mouse.movementY += pitchDelta * 12;
-      this.mouse.movementX += yawDelta   * 12;
+      this._frameMovementX += yawDelta   * 12;
+      this._frameMovementY += pitchDelta * 12;
     }
   }
 
@@ -266,20 +271,31 @@ export class InputController {
     window.addEventListener('contextmenu', e => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
-      if (Object.prototype.hasOwnProperty.call(this.keys, e.key)) {
-        this.keys[e.key] = true;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (Object.prototype.hasOwnProperty.call(this.keys, k)) {
+        this.keys[k] = true;
       }
     });
 
     window.addEventListener('keyup', (e) => {
-      if (Object.prototype.hasOwnProperty.call(this.keys, e.key)) {
-        this.keys[e.key] = false;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (Object.prototype.hasOwnProperty.call(this.keys, k)) {
+        this.keys[k] = false;
       }
     });
 
+    window.addEventListener('blur', () => {
+      for (const k in this.keys) {
+        this.keys[k] = false;
+      }
+      this.mouse.isDown = false;
+      this.mouse.rightDown = false;
+    });
+
     window.addEventListener('mousemove', (e) => {
-      this.mouse.movementX = e.clientX - this.prevMouse.x;
-      this.mouse.movementY = e.clientY - this.prevMouse.y;
+      // Accumulate raw movement per frame — will be capped in consumeMovement()
+      this._frameMovementX += (e.clientX - this.prevMouse.x);
+      this._frameMovementY += (e.clientY - this.prevMouse.y);
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
       this.prevMouse.x = e.clientX;
@@ -295,6 +311,16 @@ export class InputController {
       if (e.button === 0) this.mouse.isDown = false;
       if (e.button === 2) this.mouse.rightDown = false;
     });
+  }
+
+  // Called once per frame by GameManager BEFORE physics — caps and transfers accumulated input
+  consumeMovement() {
+    // Cap accumulated mouse delta to prevent massive jumps
+    const cap = this._maxDeltaPerFrame;
+    this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX));
+    this.mouse.movementY = Math.max(-cap, Math.min(cap, this._frameMovementY));
+    this._frameMovementX = 0;
+    this._frameMovementY = 0;
   }
 
   clearDeltas() {

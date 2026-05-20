@@ -56,44 +56,78 @@ function snoise2D(vx, vy) {
   return 130.0 * (m0 * gx + m1 * gy + m2 * gz);
 }
 
-// Layered terrain: macro mountains + hills + canyons
+// Layered terrain: wide mountains, no flat land, irregular everywhere
 function computeElevation(worldX, worldZ, ns, hs) {
-  // --- MACRO: large mountain ranges ---
-  const macro = snoise2D(worldX * ns * 0.4, worldZ * ns * 0.4);          // very large features
-  const macroAbs = Math.pow(Math.abs(macro), 1.6) * Math.sign(macro + 0.1);
+  // --- Heavy domain warp: distort coordinates for very irregular shapes ---
+  const warpX = snoise2D(worldX * ns * 0.2 + 7.3, worldZ * ns * 0.2 + 2.1) * 150;
+  const warpZ = snoise2D(worldX * ns * 0.2 + 13.7, worldZ * ns * 0.2 + 9.4) * 150;
+  const wx = worldX + warpX;
+  const wz = worldZ + warpZ;
 
-  // --- MID: hills and ridges ---
-  const mid = snoise2D(worldX * ns * 1.2, worldZ * ns * 1.2);
-  const midAbs = Math.pow(Math.abs(mid), 1.1);
+  // --- CONTINENT: very wide, rolling landscape base (low freq, high amplitude) ---
+  const continent = snoise2D(wx * ns * 0.12, wz * ns * 0.12);
+  const continentShaped = (continent * 0.5 + 0.5); // 0..1 range, always positive
+  const continentElev = continentShaped * continentShaped * hs * 1.2;
 
-  // --- DETAIL: small bumps ---
-  const detail = snoise2D(worldX * ns * 4.0, worldZ * ns * 4.0) * 0.15;
+  // --- MACRO: wide mountain masses ---
+  const macro = snoise2D(wx * ns * 0.3, wz * ns * 0.3);
+  const macroShaped = Math.pow(Math.abs(macro), 0.8) * hs * 0.9;
 
-  // --- CANYON: subtract a canyon layer for dramatic cuts ---
-  const canyonNoise = snoise2D(worldX * ns * 0.7 + 3.7, worldZ * ns * 0.7 + 1.3);
-  const canyonCut = Math.max(0.0, 1.0 - Math.abs(canyonNoise) * 3.5); // sharp cuts
+  // --- MID: hills ---
+  const mid = snoise2D(wx * ns * 0.7, wz * ns * 0.7);
+  const midShaped = Math.abs(mid) * hs * 0.4;
 
-  // Combine layers
-  let elevation = macroAbs * hs * 1.1
-    + midAbs * hs * 0.45
-    + detail * hs;
+  // --- RIDGES: sharp ridge lines ---
+  const ridge = snoise2D(wx * ns * 1.2 + 5.0, wz * ns * 1.2 + 3.0);
+  const ridgeLine = 1.0 - Math.abs(ridge);
+  const ridgeSharp = Math.pow(ridgeLine, 1.6) * hs * 0.18;
 
-  // Canyon subtraction (cut deep valleys into the terrain)
-  elevation -= canyonCut * hs * 0.6;
+  // --- BUMPS: medium detail ---
+  const bumps = snoise2D(wx * ns * 2.5, wz * ns * 2.5) * hs * 0.08;
 
-  // Ensure a minimum floor
-  elevation = Math.max(elevation, 3.0);
+  // --- MICRO: fine texture everywhere so nothing feels flat ---
+  const micro1 = snoise2D(wx * ns * 5.0 + 20.0, wz * ns * 5.0 + 15.0) * hs * 0.04;
+  const micro2 = snoise2D(wx * ns * 10.0 + 50.0, wz * ns * 10.0 + 35.0) * hs * 0.015;
+
+  // --- CANYON: deep cuts between mountains ---
+  const canyonNoise = snoise2D(wx * ns * 0.4 + 3.7, wz * ns * 0.4 + 1.3);
+  const canyonCut = Math.max(0.0, 1.0 - Math.abs(canyonNoise) * 2.5);
+  const canyonDeep = Math.pow(canyonCut, 1.8) * hs * 0.7;
+
+  // --- Second canyon at different angle ---
+  const canyon2 = snoise2D(wx * ns * 0.5 + 11.2, wz * ns * 0.5 + 7.8);
+  const canyon2Cut = Math.max(0.0, 1.0 - Math.abs(canyon2) * 3.0);
+  const canyon2Deep = Math.pow(canyon2Cut, 2.0) * hs * 0.4;
+
+  // Combine — no flat areas possible because continent base is always > 0
+  let elevation = continentElev
+    + macroShaped
+    + midShaped
+    + ridgeSharp
+    + bumps
+    + micro1
+    + micro2;
+
+  // Canyon subtraction
+  elevation -= canyonDeep;
+  elevation -= canyon2Deep;
+
+  // Irregular floor — never truly flat, always bumpy minimum
+  const floorNoise = snoise2D(worldX * ns * 3.0 + 40.0, worldZ * ns * 3.0 + 25.0);
+  const floorNoise2 = snoise2D(worldX * ns * 7.0 + 60.0, worldZ * ns * 7.0 + 45.0);
+  const minFloor = 15.0 + floorNoise * 12.0 + floorNoise2 * 5.0;
+  elevation = Math.max(elevation, minFloor);
+
   return elevation;
 }
 
 export class Terrain {
   constructor(scene) {
     this.scene = scene;
-    // Higher density grid, tighter spacing for smoother terrain
-    this.gridSize = 480;
-    this.gridSpacing = 6;
-    this.ns = 0.0022;
-    this.hs = 90.0;
+    this.gridSize = 700;
+    this.gridSpacing = 8;
+    this.ns = 0.0016;   // slightly lower freq = wider mountains
+    this.hs = 220.0;    // taller
     this._createMesh();
   }
 
@@ -142,26 +176,62 @@ export class Terrain {
         }
 
         float getElevation(float wx, float wz) {
-          // Macro mountains
-          float macro = snoise(vec2(wx * uNoiseScale * 0.4, wz * uNoiseScale * 0.4));
-          float macroAbs = pow(abs(macro), 1.6) * sign(macro + 0.1);
+          // Heavy domain warp
+          float warpX = snoise(vec2(wx * uNoiseScale * 0.2 + 7.3, wz * uNoiseScale * 0.2 + 2.1)) * 150.0;
+          float warpZ = snoise(vec2(wx * uNoiseScale * 0.2 + 13.7, wz * uNoiseScale * 0.2 + 9.4)) * 150.0;
+          float wwx = wx + warpX;
+          float wwz = wz + warpZ;
 
-          // Mid hills
-          float mid = snoise(vec2(wx * uNoiseScale * 1.2, wz * uNoiseScale * 1.2));
-          float midAbs = pow(abs(mid), 1.1);
+          // Continent base — always positive, wide rolling
+          float continent = snoise(vec2(wwx * uNoiseScale * 0.12, wwz * uNoiseScale * 0.12));
+          float continentShaped = (continent * 0.5 + 0.5);
+          float continentElev = continentShaped * continentShaped * uHeightScale * 1.2;
 
-          // Detail
-          float detail = snoise(vec2(wx * uNoiseScale * 4.0, wz * uNoiseScale * 4.0)) * 0.15;
+          // Wide mountains
+          float macro = snoise(vec2(wwx * uNoiseScale * 0.3, wwz * uNoiseScale * 0.3));
+          float macroShaped = pow(abs(macro), 0.8) * uHeightScale * 0.9;
+
+          // Hills
+          float mid = snoise(vec2(wwx * uNoiseScale * 0.7, wwz * uNoiseScale * 0.7));
+          float midShaped = abs(mid) * uHeightScale * 0.4;
+
+          // Ridges
+          float ridge = snoise(vec2(wwx * uNoiseScale * 1.2 + 5.0, wwz * uNoiseScale * 1.2 + 3.0));
+          float ridgeLine = 1.0 - abs(ridge);
+          float ridgeSharp = pow(ridgeLine, 1.6) * uHeightScale * 0.18;
+
+          // Bumps
+          float bumps = snoise(vec2(wwx * uNoiseScale * 2.5, wwz * uNoiseScale * 2.5)) * uHeightScale * 0.08;
+
+          // Micro texture
+          float micro1 = snoise(vec2(wwx * uNoiseScale * 5.0 + 20.0, wwz * uNoiseScale * 5.0 + 15.0)) * uHeightScale * 0.04;
+          float micro2 = snoise(vec2(wwx * uNoiseScale * 10.0 + 50.0, wwz * uNoiseScale * 10.0 + 35.0)) * uHeightScale * 0.015;
 
           // Canyons
-          float canyonNoise = snoise(vec2(wx * uNoiseScale * 0.7 + 3.7, wz * uNoiseScale * 0.7 + 1.3));
-          float canyonCut = max(0.0, 1.0 - abs(canyonNoise) * 3.5);
+          float canyonNoise = snoise(vec2(wwx * uNoiseScale * 0.4 + 3.7, wwz * uNoiseScale * 0.4 + 1.3));
+          float canyonCut = max(0.0, 1.0 - abs(canyonNoise) * 2.5);
+          float canyonDeep = pow(canyonCut, 1.8) * uHeightScale * 0.7;
 
-          float elev = macroAbs * uHeightScale * 1.1
-                     + midAbs  * uHeightScale * 0.45
-                     + detail  * uHeightScale;
-          elev -= canyonCut * uHeightScale * 0.6;
-          return max(elev, 3.0);
+          float canyon2 = snoise(vec2(wwx * uNoiseScale * 0.5 + 11.2, wwz * uNoiseScale * 0.5 + 7.8));
+          float canyon2Cut = max(0.0, 1.0 - abs(canyon2) * 3.0);
+          float canyon2Deep = pow(canyon2Cut, 2.0) * uHeightScale * 0.4;
+
+          float elev = continentElev
+                     + macroShaped
+                     + midShaped
+                     + ridgeSharp
+                     + bumps
+                     + micro1
+                     + micro2;
+
+          elev -= canyonDeep;
+          elev -= canyon2Deep;
+
+          // Irregular floor
+          float floorNoise = snoise(vec2(wx * uNoiseScale * 3.0 + 40.0, wz * uNoiseScale * 3.0 + 25.0));
+          float floorNoise2 = snoise(vec2(wx * uNoiseScale * 7.0 + 60.0, wz * uNoiseScale * 7.0 + 45.0));
+          float minFloor = 15.0 + floorNoise * 12.0 + floorNoise2 * 5.0;
+          return max(elev, minFloor);
         }
 
         varying float vElevation;
@@ -180,10 +250,8 @@ export class Terrain {
           vec4 mvPos  = modelViewMatrix * vec4(newPos, 1.0);
           gl_Position = projectionMatrix * mvPos;
 
-          // Fixed point size — no distance scaling that causes flicker
           float dist = -mvPos.z;
-          // Clamp point size: large up close, minimum far away
-          gl_PointSize = clamp(180.0 / dist, 1.8, 5.0);
+          gl_PointSize = clamp(180.0 / dist, 1.4, 3.0);
 
           vDist = dist;
         }
@@ -195,40 +263,44 @@ export class Terrain {
         uniform float uHeightScale;
 
         void main(){
-          // Circular point shape (discard corners)
           vec2 c = 2.0 * gl_PointCoord - 1.0;
           float r = dot(c, c);
           if(r > 1.0) discard;
 
           float t = clamp(vElevation / uHeightScale, 0.0, 1.0);
 
-          // Valley = deep blue, slopes = cyan, peaks = bright cyan-white
-          vec3 valleyCol = vec3(0.0, 0.05, 0.28);
-          vec3 hillCol   = vec3(0.0, 0.25, 0.55);
-          vec3 slopeCol  = vec3(0.0, 0.55, 0.85);
-          vec3 peakCol   = vec3(0.5, 0.9, 1.0);
+          // Deep canyons = dark blue/purple, slopes = cyan, peaks = bright white-cyan
+          vec3 canyonCol = vec3(0.0, 0.02, 0.15);
+          vec3 valleyCol = vec3(0.0, 0.06, 0.30);
+          vec3 hillCol   = vec3(0.0, 0.20, 0.50);
+          vec3 slopeCol  = vec3(0.0, 0.40, 0.65);
+          vec3 ridgeCol  = vec3(0.15, 0.45, 0.70);
+          vec3 peakCol   = vec3(0.40, 0.50, 0.60);
 
           vec3 col;
-          if(t < 0.25)      col = mix(valleyCol, hillCol,  t / 0.25);
-          else if(t < 0.55) col = mix(hillCol,  slopeCol, (t - 0.25) / 0.30);
-          else              col = mix(slopeCol,  peakCol,  (t - 0.55) / 0.45);
+          if(t < 0.08)      col = mix(canyonCol, valleyCol, t / 0.08);
+          else if(t < 0.22) col = mix(valleyCol, hillCol,   (t - 0.08) / 0.14);
+          else if(t < 0.45) col = mix(hillCol,   slopeCol,  (t - 0.22) / 0.23);
+          else if(t < 0.70) col = mix(slopeCol,  ridgeCol,  (t - 0.45) / 0.25);
+          else if(t < 0.88) col = mix(ridgeCol,  peakCol,   (t - 0.70) / 0.18);
+          else              col = mix(peakCol,   vec3(0.70, 0.73, 0.78), (t - 0.88) / 0.12); // Subtle cool grey-white accent
 
-          // Distance fade
-          float distFade = clamp(1.0 - vDist / 1400.0, 0.12, 1.0);
+          float distFade = clamp(1.0 - vDist / 2800.0, 0.12, 1.0);
           col *= distFade;
 
-          // Radial edge fade for terrain grid boundary
-          float radialDist = length(vLocalXZ);
-          float alpha = smoothstep(1440.0, 1100.0, radialDist);
+          vec3 fogColor = vec3(0.01, 0.03, 0.10); // Slight blue atmospheric space fog
+          float fogFactor = smoothstep(1200.0, 2600.0, vDist);
+          col = mix(col, fogColor, fogFactor);
 
-          // Soft point edge (anti-alias)
+          float radialDist = length(vLocalXZ);
+          float alpha = smoothstep(2800.0, 2000.0, radialDist);
           float softEdge = 1.0 - smoothstep(0.6, 1.0, r);
 
           gl_FragColor = vec4(col, alpha * softEdge);
         }
       `,
       transparent: true,
-      depthWrite: false  // prevents z-fighting / flickering between points
+      depthWrite: false
     });
 
     this.points = new THREE.Points(geometry, this.material);
