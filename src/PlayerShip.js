@@ -108,21 +108,42 @@ export class PlayerShip {
   _handleInput(deltaTime, input) {
     const mouseSensitivity = 0.0028;
 
-    this.pitch -= input.mouse.movementY * mouseSensitivity;
-    if (input.isForward())  this.pitch += 1.2 * deltaTime;
-    if (input.isBackward()) this.pitch -= 1.2 * deltaTime;
+    if (input.isMobile) {
+      // 1. Continuous Analog Gyro Flight Controls (like a real flight yoke)
+      const gyroPitchSpeed = 1.35; // rate of pitching nose up/down
+      const gyroYawSpeed = 1.25;   // turning speed
+      const gyroRollSpeed = 3.5;   // banking speed
 
-    this.yaw -= input.mouse.movementX * mouseSensitivity;
+      // Pitch control: tilt pitch adds/subtracts to pitch (pitch up = positive gyroPitchAmt)
+      this.pitch += input.gyroPitchAmt * gyroPitchSpeed * deltaTime;
 
-    const rollSpeed = 2.5;
-    if (input.isLeft()) {
-      this.roll = THREE.MathUtils.lerp(this.roll,  1.0, rollSpeed * deltaTime);
-      this.yaw += 0.8 * deltaTime;
-    } else if (input.isRight()) {
-      this.roll = THREE.MathUtils.lerp(this.roll, -1.0, rollSpeed * deltaTime);
-      this.yaw -= 0.8 * deltaTime;
+      // Roll and Yaw banking: tilt roll banks (rolls) the ship and turns (yaws) it
+      if (Math.abs(input.gyroRollAmt) > 0.02) {
+        // Roll: bank in direction of tilt
+        this.roll = THREE.MathUtils.lerp(this.roll, input.gyroRollAmt * 1.1, gyroRollSpeed * deltaTime);
+        // Yaw: turn in direction of tilt
+        this.yaw += input.gyroRollAmt * gyroYawSpeed * deltaTime;
+      } else {
+        this.roll = THREE.MathUtils.lerp(this.roll, 0, 3.0 * deltaTime);
+      }
     } else {
-      this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
+      // 2. Desktop Controls (Mouse for crosshair, W/S for pitch, A/D for bank turning)
+      this.pitch -= input.mouse.movementY * mouseSensitivity;
+      if (input.isForward())  this.pitch += 1.2 * deltaTime;
+      if (input.isBackward()) this.pitch -= 1.2 * deltaTime;
+
+      this.yaw -= input.mouse.movementX * mouseSensitivity;
+
+      const rollSpeed = 2.5;
+      if (input.isLeft()) {
+        this.roll = THREE.MathUtils.lerp(this.roll,  1.0, rollSpeed * deltaTime);
+        this.yaw += 0.8 * deltaTime;
+      } else if (input.isRight()) {
+        this.roll = THREE.MathUtils.lerp(this.roll, -1.0, rollSpeed * deltaTime);
+        this.yaw -= 0.8 * deltaTime;
+      } else {
+        this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
+      }
     }
 
     this.throttle = 140;

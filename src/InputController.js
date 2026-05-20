@@ -27,6 +27,8 @@ export class InputController {
     this.gyroCalibrated = false;
     this.gyroBaseBeta  = 0;
     this.gyroBaseGamma = 0;
+    this.gyroPitchAmt = 0;
+    this.gyroRollAmt = 0;
 
     // Virtual joystick (mobile crosshair look)
     this.lookJoystick = {
@@ -65,8 +67,11 @@ export class InputController {
         <path d="M 20 50 A 18 18 0 0 1 14 32 L 11 36 M 14 32 L 19 33" />
       </svg>
       <div>ROTATE DEVICE TO LANDSCAPE</div>
-      <div style="font-size:18px; margin-top:10px; color:#ffb700;">
+      <div style="font-size:18px; margin-top:10px; color:#ffb700; text-transform:uppercase;">
         FOR BEST DOGFIGHT EXPERIENCE
+      </div>
+      <div style="font-size:15px; margin-top:12px; color:#88ffcc; text-transform:uppercase; letter-spacing:1px; opacity:0.8;">
+        (OR USE A DESKTOP FOR THE BEST EXPERIENCE)
       </div>
     `;
     document.body.appendChild(landscapeMsg);
@@ -78,7 +83,13 @@ export class InputController {
       <div id="mobile-joystick">
         <div id="mobile-joystick-knob"></div>
       </div>
-      <div id="mobile-shoot-btn">FIRE</div>
+      <div id="mobile-shoot-btn" aria-label="Fire">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 100, 0, 0.9)" stroke-width="2.5" style="filter: drop-shadow(0 0 8px rgba(255,100,0,0.5));">
+          <path d="M12 2C10 5 9 8 9 12v7c0 1.1.9 2 2 2h2c1.1 0 2-.9 2-2v-7c0-4-1-7-3-10z" fill="rgba(255, 100, 0, 0.15)"/>
+          <line x1="9" y1="15" x2="15" y2="15" />
+          <line x1="9" y1="18" x2="15" y2="18" />
+        </svg>
+      </div>
       <div id="mobile-boost-btn">BOOST</div>
     `;
     document.body.appendChild(mobileHUD);
@@ -279,6 +290,25 @@ export class InputController {
     } else if (tiltRoll < -threshold) {
       this.mobileRight = true;
     }
+
+    // Continuous analog values for fluid flight yoke style controls
+    const deadzone = 1.8; // degrees
+    const maxTilt = 22.0; // degrees for full saturation
+
+    let pitchAmt = 0;
+    if (Math.abs(tiltPitch) > deadzone) {
+      const sign = Math.sign(tiltPitch);
+      pitchAmt = sign * Math.min(1.0, (Math.abs(tiltPitch) - deadzone) / (maxTilt - deadzone));
+    }
+
+    let rollAmt = 0;
+    if (Math.abs(tiltRoll) > deadzone) {
+      const sign = Math.sign(tiltRoll);
+      rollAmt = sign * Math.min(1.0, (Math.abs(tiltRoll) - deadzone) / (maxTilt - deadzone));
+    }
+
+    this.gyroPitchAmt = pitchAmt;
+    this.gyroRollAmt = rollAmt;
   }
 
   _initListeners() {
@@ -307,6 +337,7 @@ export class InputController {
     });
 
     window.addEventListener('mousemove', (e) => {
+      if (this.isMobile) return;
       // Accumulate raw movement per frame — will be capped in consumeMovement()
       this._frameMovementX += (e.clientX - this.prevMouse.x);
       this._frameMovementY += (e.clientY - this.prevMouse.y);
@@ -317,11 +348,13 @@ export class InputController {
     });
 
     window.addEventListener('mousedown', (e) => {
+      if (this.isMobile) return;
       if (e.button === 0) { this.mouse.isDown = true; this.mouse.clickPulse = true; }
       if (e.button === 2) { this.mouse.rightDown = true; this.mouse.clickPulse = true; }
     });
 
     window.addEventListener('mouseup', (e) => {
+      if (this.isMobile) return;
       if (e.button === 0) this.mouse.isDown = false;
       if (e.button === 2) this.mouse.rightDown = false;
     });
@@ -329,19 +362,43 @@ export class InputController {
 
   // Called once per frame by GameManager BEFORE physics — caps and transfers accumulated input
   consumeMovement() {
-    if (this.joystick && this.joystick.active) {
-      // Adjust crosshair movement rate on mobile
-      const rate = 8;
-      this._frameMovementX += this.joystick.normX * rate;
-      this._frameMovementY += this.joystick.normY * rate;
-    }
+    if (this.isMobile) {
+      if (this.joystick && this.joystick.active) {
+        // Move crosshair relative to joystick direction
+        const joystickSpeed = 16.0; // responsive crosshair speed
+        this.mouse.x += this.joystick.normX * joystickSpeed;
+        this.mouse.y += this.joystick.normY * joystickSpeed;
 
-    // Cap accumulated mouse delta to prevent massive jumps
-    const cap = this._maxDeltaPerFrame;
-    this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX));
-    this.mouse.movementY = Math.max(-cap, Math.min(cap, this._frameMovementY));
-    this._frameMovementX = 0;
-    this._frameMovementY = 0;
+        // Clamp to screen bounds
+        this.mouse.x = Math.max(50, Math.min(window.innerWidth - 50, this.mouse.x));
+        this.mouse.y = Math.max(50, Math.min(window.innerHeight - 50, this.mouse.y));
+
+        // Use movement deltas for active locking & aiming algorithms
+        this.mouse.movementX = this.joystick.normX * joystickSpeed;
+        this.mouse.movementY = this.joystick.normY * joystickSpeed;
+      } else {
+        // Smoothly return crosshair to the exact center of screen
+        const targetX = window.innerWidth / 2;
+        const targetY = window.innerHeight / 2;
+        const prevX = this.mouse.x;
+        const prevY = this.mouse.y;
+
+        this.mouse.x = THREE.MathUtils.lerp(this.mouse.x, targetX, 0.15);
+        this.mouse.y = THREE.MathUtils.lerp(this.mouse.y, targetY, 0.15);
+
+        this.mouse.movementX = this.mouse.x - prevX;
+        this.mouse.movementY = this.mouse.y - prevY;
+      }
+      this._frameMovementX = 0;
+      this._frameMovementY = 0;
+    } else {
+      // Desktop caps and transfers
+      const cap = this._maxDeltaPerFrame;
+      this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX));
+      this.mouse.movementY = Math.max(-cap, Math.min(cap, this._frameMovementY));
+      this._frameMovementX = 0;
+      this._frameMovementY = 0;
+    }
   }
 
   clearDeltas() {

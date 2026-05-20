@@ -192,22 +192,24 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 }
 
 #mobile-shoot-btn {
-  position: absolute; right: 35px; bottom: 15px;
-  width: 90px; height: 90px;
+  position: absolute; right: 15px; bottom: 15px;
+  width: 130px; height: 130px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,100,0,0.5), rgba(255,50,0,0.25));
-  border: 2px solid rgba(255,100,0,0.9);
+  background: rgba(255, 100, 0, 0.05);
+  border: 2px solid rgba(255, 100, 0, 0.35);
   display: flex; align-items: center; justify-content: center;
   color: #ffaa00; font-family: 'VT323', monospace; font-size: 24px;
   text-shadow: 0 0 10px #ff6600;
-  box-shadow: 0 0 20px rgba(255,100,0,0.4);
+  box-shadow: inset 0 0 15px rgba(255,100,0,0.05);
   pointer-events: all; user-select: none;
   font-weight: bold;
+  z-index: 105; /* Concentric overlay above radar container */
 }
 
 #mobile-shoot-btn:active {
-  background: radial-gradient(circle, rgba(255,150,0,0.7), rgba(255,100,0,0.4));
-  box-shadow: 0 0 30px rgba(255,100,0,0.8);
+  background: rgba(255, 100, 0, 0.18);
+  border-color: rgba(255, 100, 0, 0.85);
+  box-shadow: inset 0 0 25px rgba(255,100,0,0.15), 0 0 15px rgba(255,100,0,0.25);
 }
 
 #mobile-boost-btn {
@@ -313,7 +315,7 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
   
   #radar-container { 
     width: 130px; height: 130px; 
-    bottom: 120px; right: 15px; 
+    bottom: 15px; right: 15px; 
   }
   
   #mobile-hud {
