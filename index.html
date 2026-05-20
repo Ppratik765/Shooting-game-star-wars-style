@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Wireframe Space Shooter</title>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css" />
@@ -14,7 +17,7 @@
 
       <!-- Warning Alerts (center-top) -->
       <div id="warning-container">
-        <div id="stall-warning" class="warning-text">⚠ STALL ⚠</div>
+        <div id="stall-warning"   class="warning-text">⚠ STALL ⚠</div>
         <div id="terrain-warning" class="warning-text">⚠ TERRAIN — PULL UP ⚠</div>
         <div id="no-charge-warning" class="warning-text charge-warn">NO CHARGE</div>
       </div>
@@ -56,6 +59,7 @@
         <div id="radar-blips"></div>
       </div>
 
+      <!-- Hull meter only (engine/charge now in arc HUD) -->
       <div id="meters-container">
         <div class="meter">
           <div class="meter-label">HULL</div>
@@ -72,16 +76,16 @@
       </div>
 
       <div id="enemy-ui-layer"></div>
-      
-      <!-- Boost Vignette -->
+
+      <!-- Boost Vignette (now BLUE) -->
       <div id="boost-vignette"></div>
-      
+
       <!-- Altitude Penalty -->
       <div id="altitude-warning">
         <div class="warning-text">ALTITUDE TOO HIGH, HULL IS COMPROMISED</div>
       </div>
 
-      <!-- Enhanced CRT Overlay -->
+      <!-- CRT Overlay -->
       <div id="crt-scanlines"></div>
       <div id="crt-overlay"></div>
     </div>
