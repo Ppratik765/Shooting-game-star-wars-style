@@ -304,6 +304,12 @@ export class EnemyManager {
       if (enemy.strategy === 'interceptor') baseSpeed = 140;
       if (enemy.strategy === 'flanker')     baseSpeed = 120;
 
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
+      if (isMobile) {
+        baseSpeed *= 0.72;
+      }
+
       const targetVelocity = dir.clone().multiplyScalar(baseSpeed);
       targetVelocity.addScaledVector(enemy.evasionDir, 12);
       enemy.velocity.lerp(targetVelocity, 1.2 * deltaTime);

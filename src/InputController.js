@@ -358,6 +358,50 @@ export class InputController {
       if (e.button === 0) this.mouse.isDown = false;
       if (e.button === 2) this.mouse.rightDown = false;
     });
+
+    // Mobile specific: Prevent browser gestures (long press selection, zoom) and synthetic events,
+    // plus auto-trigger Fullscreen mode on user touch.
+    const handleGlobalTouch = (e) => {
+      if (!this.isMobile) return;
+
+      // Auto-trigger fullscreen
+      const docEl = document.documentElement;
+      const isCurrentlyFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+      if (!isCurrentlyFullscreen) {
+        const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        if (requestFS) {
+          requestFS.call(docEl).catch(() => {});
+        }
+      }
+
+      // Ignore elements that require browser touch defaults
+      const target = e.target;
+      if (target && (
+        target.closest('#settings-btn') || 
+        target.closest('#settings-menu') || 
+        target.closest('#mobile-joystick') || 
+        target.closest('#mobile-shoot-btn') || 
+        target.closest('#mobile-boost-btn')
+      )) {
+        return; // Allow interacting with UI buttons normally
+      }
+      
+      e.preventDefault();
+    };
+
+    window.addEventListener('touchstart', handleGlobalTouch, { passive: false });
+    window.addEventListener('touchmove', handleGlobalTouch, { passive: false });
+    window.addEventListener('click', () => {
+      if (!this.isMobile) return;
+      const docEl = document.documentElement;
+      const isCurrentlyFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+      if (!isCurrentlyFullscreen) {
+        const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        if (requestFS) {
+          requestFS.call(docEl).catch(() => {});
+        }
+      }
+    }, { passive: true });
   }
 
   // Called once per frame by GameManager BEFORE physics — caps and transfers accumulated input

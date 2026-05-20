@@ -146,14 +146,26 @@ export class PlayerShip {
       }
     }
 
-    this.throttle = 140;
-    if (input.isBoosting() && !this.staminaDepleted) {
-      this.isBoosting  = true;
-      this.targetFOV = this.baseFOV + 20;
-      this.throttle  = 360;
+    if (input.isMobile) {
+      this.throttle = 110;
+      if (input.isBoosting() && !this.staminaDepleted) {
+        this.isBoosting  = true;
+        this.targetFOV = this.baseFOV + 20;
+        this.throttle  = 280;
+      } else {
+        this.isBoosting = false;
+        this.targetFOV  = this.baseFOV;
+      }
     } else {
-      this.isBoosting = false;
-      this.targetFOV  = this.baseFOV;
+      this.throttle = 140;
+      if (input.isBoosting() && !this.staminaDepleted) {
+        this.isBoosting  = true;
+        this.targetFOV = this.baseFOV + 20;
+        this.throttle  = 360;
+      } else {
+        this.isBoosting = false;
+        this.targetFOV  = this.baseFOV;
+      }
     }
 
     this.pitch = THREE.MathUtils.clamp(this.pitch, -1.4, 1.4);
