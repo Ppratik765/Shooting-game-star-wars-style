@@ -7,49 +7,61 @@ export class WeaponSystem {
     this.enemyManager = enemyManager;
     this.uiManager = uiManager;
 
-
     // Charge system
-    this.maxCharge = 100;
+    this.maxCharge = 80;   // Slightly less max capacity as requested
     this.charge = this.maxCharge;
-    this.chargePerShot = 1.0;  // Was 2.5
-    this.chargeRegenRate = 15; // Was 10
+    this.chargePerShot = 1.2;
+    this.chargeRegenRate = 14;
     this.chargeDepleted = false;
 
     // Targeting system
-    this.projectileSpeed = 400; // Slower speed for better visibility
-    this.fireRate = 0.12;
+    this.projectileSpeed = 900;  // Lasers are light — very fast and perfectly straight
+    this.fireRate = 0.10;
     this.lastFireTime = 0;
     this.lockedEnemy = null;
 
     // Object pool
-    this.poolSize = 80; // Larger pool
+    this.poolSize = 80;
     this.pool = [];
 
-    const geom = new THREE.CapsuleGeometry(1.2, 15.0, 4, 8); // Length 15 as requested
-    geom.rotateX(Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ 
-      color: 0xff6600, // Orange
-      transparent: true,
-      opacity: 1.0
-    });
+    // Laser bolt geometry: long thin cylinder (energy bolt look)
+    const geom = new THREE.CylinderGeometry(0.35, 0.35, 28, 6, 1);
+    geom.rotateX(Math.PI / 2); // align along Z axis
 
+    // Each projectile gets its own material for per-projectile glow
     for (let i = 0; i < this.poolSize; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xff4400,
+        transparent: true,
+        opacity: 0.95
+      });
       const mesh = new THREE.Mesh(geom, mat);
       mesh.visible = false;
       this.scene.add(mesh);
 
-      // Add a small light to each projectile
-      const light = new THREE.PointLight(0xff6600, 0, 80); // Intensity 0 initially
+      // Glow sprite overlay for bolt
+      const glowMat = new THREE.SpriteMaterial({
+        color: 0xff6600,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending
+      });
+      const glow = new THREE.Sprite(glowMat);
+      glow.scale.set(3, 30, 1);
+      glow.visible = false;
+      this.scene.add(glow);
+
+      const light = new THREE.PointLight(0xff5500, 0, 60);
       this.scene.add(light);
 
       this.pool.push({
-        mesh,
-        light,
+        mesh, glow, light,
         active: false,
         velocity: new THREE.Vector3(),
+        direction: new THREE.Vector3(),
         trackingTarget: null,
         age: 0,
-        maxAge: 2.0
+        maxAge: 2.5
       });
     }
 
@@ -61,8 +73,7 @@ export class WeaponSystem {
     if (!inputController.isFiring()) {
       this.charge = Math.min(this.maxCharge, this.charge + this.chargeRegenRate * deltaTime);
     } else {
-      // Slow regen even while firing
-      this.charge = Math.min(this.maxCharge, this.charge + this.chargeRegenRate * 0.3 * deltaTime);
+      this.charge = Math.min(this.maxCharge, this.charge + this.chargeRegenRate * 0.25 * deltaTime);
     }
 
     if (this.chargeDepleted && this.charge > this.maxCharge * 0.25) {
@@ -77,9 +88,8 @@ export class WeaponSystem {
     // Verify lock is still valid
     if (this.lockedEnemy) {
       if (!this.lockedEnemy.active) {
-        this.lockedEnemy = null; 
+        this.lockedEnemy = null;
       } else {
-        // Break lock if target is behind player
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
         const toEnemy = this.lockedEnemy.mesh.position.clone().sub(this.camera.position).normalize();
         if (toEnemy.dot(forward) < 0) {
@@ -101,98 +111,108 @@ export class WeaponSystem {
       }
     }
 
-    // Update projectiles
+    // Update projectiles — perfectly straight, no homing (lasers = light)
     for (let i = 0; i < this.poolSize; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
       p.age += deltaTime;
-      if (p.age > p.maxAge) { this.deactivate(p); continue; }
+      if (p.age > p.maxAge) { this._deactivate(p); continue; }
 
-      // Homing logic for locked shots
-      if (p.trackingTarget && p.trackingTarget.active) {
-        const targetDir = p.trackingTarget.mesh.position.clone().sub(p.mesh.position).normalize();
-        // Snap to target for "all time" hit guarantee
-        p.velocity.lerp(targetDir.multiplyScalar(this.projectileSpeed), 12 * deltaTime);
-        p.mesh.lookAt(p.trackingTarget.mesh.position);
-      }
-
+      // Pure straight-line movement — lasers don't curve
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
+      p.glow.position.copy(p.mesh.position);
       p.light.position.copy(p.mesh.position);
-      this.checkCollisions(p);
+
+      this._checkCollisions(p);
     }
   }
 
-  fire(playerVelocity) { // Accept player velocity
+  fire(playerVelocity) {
+    // Find two free projectiles
     const toSpawn = [];
     for (let i = 0; i < this.poolSize && toSpawn.length < 2; i++) {
       if (!this.pool[i].active) toSpawn.push(this.pool[i]);
     }
     if (toSpawn.length < 2) return;
 
-    // Aim direction
+    // Aim direction — always perfectly straight from camera center
     let aimDir;
-    let target;
 
     if (this.lockedEnemy && this.lockedEnemy.active) {
-      // Auto-aim at locked target
-      target = this.lockedEnemy.mesh.position.clone();
-      aimDir = target.clone().sub(this.camera.position).normalize();
+      aimDir = this.lockedEnemy.mesh.position.clone().sub(this.camera.position).normalize();
     } else {
-      // Standard crosshair aim
+      // Use crosshair NDC position
       const crosshairPos = this.uiManager.currentCrosshairPos;
       const ndcX = (crosshairPos.x / window.innerWidth) * 2 - 1;
       const ndcY = -(crosshairPos.y / window.innerHeight) * 2 + 1;
-      
       this.raycaster.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
-      aimDir = this.raycaster.ray.direction.clone();
-      target = this.camera.position.clone().add(aimDir.clone().multiplyScalar(2000));
+      aimDir = this.raycaster.ray.direction.clone().normalize();
     }
 
-    // Spawn positions offset from camera
-    const offsetL = new THREE.Vector3(-6.0, -2.0, -5.0);
-    const offsetR = new THREE.Vector3(6.0, -2.0, -5.0);
-    offsetL.applyMatrix4(this.camera.matrixWorld);
-    offsetR.applyMatrix4(this.camera.matrixWorld);
+    // Laser velocity: straight line, no player velocity added (lasers = pure light speed)
+    const laserVel = aimDir.clone().multiplyScalar(this.projectileSpeed);
 
-    // Initial muzzle velocity + Ship's current velocity
-    const muzzleVel = aimDir.clone().multiplyScalar(this.projectileSpeed);
-    const totalVel = muzzleVel.add(playerVelocity || new THREE.Vector3());
+    // Spawn from extreme left/right edges of the screen in world space
+    // Project screen-edge points into world space at a near distance
+    const near = 5.0; // distance from camera for spawn
+    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const camUp    = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const camFwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
-    // Left
-    const pL = toSpawn[0];
-    pL.active = true;
-    pL.age = 0;
-    pL.mesh.position.copy(offsetL);
-    pL.mesh.visible = true;
-    pL.velocity.copy(totalVel);
-    pL.trackingTarget = this.lockedEnemy;
-    pL.mesh.lookAt(target);
-    pL.light.position.copy(offsetL);
-    pL.light.intensity = 200;
-    pL.light.distance = 150;
+    // Extreme left/right: push to screen edge using FOV math
+    const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
+    const aspect = window.innerWidth / window.innerHeight;
+    const halfW  = Math.tan(fovRad * 0.5) * aspect * near;
+    const halfH  = Math.tan(fovRad * 0.5) * near * 0.05; // Slightly below center
 
-    // Right
-    const pR = toSpawn[1];
-    pR.active = true;
-    pR.age = 0;
-    pR.mesh.position.copy(offsetR);
-    pR.mesh.visible = true;
-    pR.velocity.copy(totalVel);
-    pR.trackingTarget = this.lockedEnemy;
-    pR.mesh.lookAt(target);
-    pR.light.position.copy(offsetR);
-    pR.light.intensity = 200;
-    pR.light.distance = 150;
+    // Left laser origin: left edge of screen, slight below center
+    const originL = this.camera.position.clone()
+      .addScaledVector(camFwd, near)
+      .addScaledVector(camRight, -halfW)
+      .addScaledVector(camUp, -halfH);
+
+    // Right laser origin: right edge of screen, slight below center
+    const originR = this.camera.position.clone()
+      .addScaledVector(camFwd, near)
+      .addScaledVector(camRight, halfW)
+      .addScaledVector(camUp, -halfH);
+
+    this._activateProjectile(toSpawn[0], originL, laserVel, aimDir);
+    this._activateProjectile(toSpawn[1], originR, laserVel, aimDir);
   }
 
-  deactivate(p) {
+  _activateProjectile(p, origin, velocity, direction) {
+    p.active = true;
+    p.age = 0;
+
+    p.mesh.position.copy(origin);
+    p.mesh.visible = true;
+    // Orient mesh along travel direction
+    const target = origin.clone().add(direction);
+    p.mesh.lookAt(target);
+    p.mesh.rotateX(Math.PI / 2); // re-align cylinder
+
+    p.glow.position.copy(origin);
+    p.glow.visible = true;
+
+    p.velocity.copy(velocity);
+    p.direction.copy(direction);
+    p.trackingTarget = null;
+
+    p.light.position.copy(origin);
+    p.light.intensity = 120;
+    p.light.distance = 80;
+  }
+
+  _deactivate(p) {
     p.active = false;
     p.mesh.visible = false;
+    p.glow.visible = false;
     p.light.intensity = 0;
     p.trackingTarget = null;
   }
 
-  checkCollisions(projectile) {
+  _checkCollisions(projectile) {
     const enemies = this.enemyManager.getEnemies();
     for (let i = 0; i < enemies.length; i++) {
       const enemy = enemies[i];
@@ -200,27 +220,23 @@ export class WeaponSystem {
       const dist = projectile.mesh.position.distanceTo(enemy.mesh.position);
       if (dist < enemy.radius) {
         this.enemyManager.damageEnemy(enemy, 1);
-        this.deactivate(projectile);
+        this._deactivate(projectile);
         return;
       }
     }
   }
 
   _attemptLock() {
-    // Raycast from center of screen
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     const enemies = this.enemyManager.getEnemies();
-    
     let closestEnemy = null;
     let closestDist = Infinity;
 
     for (const enemy of enemies) {
       if (!enemy.active) continue;
-      // Simple sphere intersection check for lock-on
       const distToShip = enemy.mesh.position.distanceTo(this.camera.position);
-      if (distToShip > 1000) continue; // Too far to lock
-      
-      const sphere = new THREE.Sphere(enemy.mesh.position, enemy.radius * 3.0); // generous lock radius
+      if (distToShip > 1000) continue;
+      const sphere = new THREE.Sphere(enemy.mesh.position, enemy.radius * 3.0);
       if (this.raycaster.ray.intersectsSphere(sphere)) {
         if (distToShip < closestDist) {
           closestDist = distToShip;
@@ -231,13 +247,13 @@ export class WeaponSystem {
 
     if (closestEnemy) {
       if (this.lockedEnemy === closestEnemy) {
-        this.lockedEnemy = null; // Toggle off if already locked
+        this.lockedEnemy = null;
       } else {
         this.lockedEnemy = closestEnemy;
         this.uiManager.addLog('TARGET LOCKED');
       }
     } else {
-      this.lockedEnemy = null; // Break lock if clicked empty space
+      this.lockedEnemy = null;
     }
   }
 
@@ -246,7 +262,7 @@ export class WeaponSystem {
     this.chargeDepleted = false;
     this.lastFireTime = 0;
     this.lockedEnemy = null;
-    for (const p of this.pool) this.deactivate(p);
+    for (const p of this.pool) this._deactivate(p);
   }
 
   getChargeState() {
