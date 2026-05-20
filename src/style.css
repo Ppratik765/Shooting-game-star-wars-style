@@ -1,8 +1,15 @@
 /* === RESET === */
-* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #000; font-family: 'VT323', monospace; color: #ffb700; font-size: 18px; cursor: crosshair; }
-#app { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-#ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+* { 
+  margin: 0; padding: 0; box-sizing: border-box; 
+  user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+}
+html, body { 
+  width: 100vw; height: 100vh; overflow: hidden; background-color: #000; 
+  font-family: 'VT323', monospace; color: #ffb700; font-size: 18px; cursor: crosshair; 
+  touch-action: none; -webkit-touch-callout: none;
+}
+#app { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; touch-action: none; }
+#ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; touch-action: none; }
 
 /* === CRT Overlay === */
 #crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.22) 50%); background-size: 100% 4px; z-index: 99; pointer-events: none; }
