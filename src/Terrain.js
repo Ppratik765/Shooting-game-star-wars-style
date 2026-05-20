@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-// === JS port of the GLSL Ashima Arts simplex noise (must match shader exactly) ===
 function mod289_2(x0, x1) {
   return [x0 - Math.floor(x0 / 289.0) * 289.0, x1 - Math.floor(x1 / 289.0) * 289.0];
 }
@@ -57,15 +56,32 @@ function snoise2D(vx, vy) {
   return 130.0 * (m0 * gx + m1 * gy + m2 * gz);
 }
 
-// JS elevation: MUST mirror the shader logic exactly
+// Layered terrain: macro mountains + hills + canyons
 function computeElevation(worldX, worldZ, ns, hs) {
-  // Ridged noise with power function to create flat plains and sharp peaks
-  const n1 = Math.pow(Math.abs(snoise2D(worldX * ns, worldZ * ns)), 2.0);
-  const n2 = Math.pow(Math.abs(snoise2D(worldX * ns * 3.0, worldZ * ns * 3.0)), 1.5);
-  const n3 = Math.abs(snoise2D(worldX * ns * 7.0, worldZ * ns * 7.0));
-  // Base terrain floor + mountains rising from it
-  let elevation = n1 * hs + n2 * (hs * 0.3) + n3 * (hs * 0.05);
-  // Slight floor so valleys aren't at zero
+  // --- MACRO: large mountain ranges ---
+  const macro = snoise2D(worldX * ns * 0.4, worldZ * ns * 0.4);          // very large features
+  const macroAbs = Math.pow(Math.abs(macro), 1.6) * Math.sign(macro + 0.1);
+
+  // --- MID: hills and ridges ---
+  const mid = snoise2D(worldX * ns * 1.2, worldZ * ns * 1.2);
+  const midAbs = Math.pow(Math.abs(mid), 1.1);
+
+  // --- DETAIL: small bumps ---
+  const detail = snoise2D(worldX * ns * 4.0, worldZ * ns * 4.0) * 0.15;
+
+  // --- CANYON: subtract a canyon layer for dramatic cuts ---
+  const canyonNoise = snoise2D(worldX * ns * 0.7 + 3.7, worldZ * ns * 0.7 + 1.3);
+  const canyonCut = Math.max(0.0, 1.0 - Math.abs(canyonNoise) * 3.5); // sharp cuts
+
+  // Combine layers
+  let elevation = macroAbs * hs * 1.1
+    + midAbs * hs * 0.45
+    + detail * hs;
+
+  // Canyon subtraction (cut deep valleys into the terrain)
+  elevation -= canyonCut * hs * 0.6;
+
+  // Ensure a minimum floor
   elevation = Math.max(elevation, 3.0);
   return elevation;
 }
@@ -73,10 +89,11 @@ function computeElevation(worldX, worldZ, ns, hs) {
 export class Terrain {
   constructor(scene) {
     this.scene = scene;
-    this.gridSize = 550;   // Increased to sell infinite land illusion
-    this.gridSpacing = 5;
-    this.ns = 0.0025;
-    this.hs = 65.0; // Slightly taller hills as requested
+    // Higher density grid, tighter spacing for smoother terrain
+    this.gridSize = 480;
+    this.gridSpacing = 6;
+    this.ns = 0.0022;
+    this.hs = 90.0;
     this._createMesh();
   }
 
@@ -88,7 +105,7 @@ export class Terrain {
     const offset = (this.gridSize * this.gridSpacing) / 2;
     for (let x = 0; x < this.gridSize; x++) {
       for (let z = 0; z < this.gridSize; z++) {
-        positions[i * 3] = x * this.gridSpacing - offset;
+        positions[i * 3]     = x * this.gridSpacing - offset;
         positions[i * 3 + 1] = 0;
         positions[i * 3 + 2] = z * this.gridSpacing - offset;
         i++;
@@ -98,13 +115,14 @@ export class Terrain {
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        uNoiseScale: { value: this.ns },
+        uNoiseScale:  { value: this.ns },
         uHeightScale: { value: this.hs },
-        uCamX: { value: 0 },
-        uCamZ: { value: 0 }
+        uCamX:        { value: 0 },
+        uCamZ:        { value: 0 }
       },
       vertexShader: /* glsl */`
         uniform float uNoiseScale, uHeightScale, uCamX, uCamZ;
+
         vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
         vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
         vec3 permute(vec3 x){return mod289(((x*34.0)+1.0)*x);}
@@ -122,59 +140,95 @@ export class Terrain {
           vec3 g;g.x=a0.x*x0.x+h.x*x0.y;g.yz=a0.yz*x12.xz+h.yz*x12.yw;
           return 130.0*dot(m,g);
         }
+
+        float getElevation(float wx, float wz) {
+          // Macro mountains
+          float macro = snoise(vec2(wx * uNoiseScale * 0.4, wz * uNoiseScale * 0.4));
+          float macroAbs = pow(abs(macro), 1.6) * sign(macro + 0.1);
+
+          // Mid hills
+          float mid = snoise(vec2(wx * uNoiseScale * 1.2, wz * uNoiseScale * 1.2));
+          float midAbs = pow(abs(mid), 1.1);
+
+          // Detail
+          float detail = snoise(vec2(wx * uNoiseScale * 4.0, wz * uNoiseScale * 4.0)) * 0.15;
+
+          // Canyons
+          float canyonNoise = snoise(vec2(wx * uNoiseScale * 0.7 + 3.7, wz * uNoiseScale * 0.7 + 1.3));
+          float canyonCut = max(0.0, 1.0 - abs(canyonNoise) * 3.5);
+
+          float elev = macroAbs * uHeightScale * 1.1
+                     + midAbs  * uHeightScale * 0.45
+                     + detail  * uHeightScale;
+          elev -= canyonCut * uHeightScale * 0.6;
+          return max(elev, 3.0);
+        }
+
         varying float vElevation;
         varying float vDist;
-        varying vec2 vLocalXZ;
+        varying vec2  vLocalXZ;
+
         void main(){
           float worldX = position.x + uCamX;
           float worldZ = position.z + uCamZ;
           vLocalXZ = position.xz;
-          // Power functions create flat valleys and sharp peaks
-          float n1 = pow(abs(snoise(vec2(worldX * uNoiseScale, worldZ * uNoiseScale))), 2.0);
-          float n2 = pow(abs(snoise(vec2(worldX * uNoiseScale * 3.0, worldZ * uNoiseScale * 3.0))), 1.5);
-          float n3 = abs(snoise(vec2(worldX * uNoiseScale * 7.0, worldZ * uNoiseScale * 7.0)));
-          float elevation = n1 * uHeightScale + n2 * (uHeightScale * 0.3) + n3 * (uHeightScale * 0.05);
-          elevation = max(elevation, 3.0);
-          vec3 newPos = position;
-          newPos.y = elevation;
+
+          float elevation = getElevation(worldX, worldZ);
           vElevation = elevation;
-          vec4 mvPos = modelViewMatrix * vec4(newPos, 1.0);
+
+          vec3 newPos = vec3(position.x, elevation, position.z);
+          vec4 mvPos  = modelViewMatrix * vec4(newPos, 1.0);
           gl_Position = projectionMatrix * mvPos;
-          gl_PointSize = max(100.0 / -mvPos.z, 1.5);
-          // Pass distance for dimming in fragment shader
-          vDist = length(mvPos.xyz);
+
+          // Fixed point size — no distance scaling that causes flicker
+          float dist = -mvPos.z;
+          // Clamp point size: large up close, minimum far away
+          gl_PointSize = clamp(180.0 / dist, 1.8, 5.0);
+
+          vDist = dist;
         }
       `,
       fragmentShader: /* glsl */`
         varying float vElevation;
         varying float vDist;
-        varying vec2 vLocalXZ;
+        varying vec2  vLocalXZ;
         uniform float uHeightScale;
-        void main(){
-          float t = clamp(vElevation / uHeightScale, 0.0, 1.0);
-          vec3 deepBlue = vec3(0.0, 0.04, 0.25);
-          vec3 medBlue  = vec3(0.0, 0.2, 0.5);
-          vec3 cyan     = vec3(0.0, 0.5, 0.8);
-          vec3 peakCol  = vec3(0.3, 0.55, 0.7); // Muted blue-white, NOT bright white
-          // Gradient: valleys -> slopes -> peaks
-          vec3 col = deepBlue;
-          if(t < 0.3) col = mix(deepBlue, medBlue, t / 0.3);
-          else if(t < 0.6) col = mix(medBlue, cyan, (t - 0.3) / 0.3);
-          else col = mix(cyan, peakCol, (t - 0.6) / 0.4);
-          // Distance-based dimming: fade brightness with distance
-          float distFade = clamp(1.0 - vDist / 1200.0, 0.15, 1.0);
-          col *= distFade;
-          
-          // Radial fade for infinite terrain illusion (Grid size 550 * 5 = 2750 total width, radius = 1375)
-          float radialDist = length(vLocalXZ);
-          float alpha = smoothstep(1375.0, 1100.0, radialDist);
 
+        void main(){
+          // Circular point shape (discard corners)
           vec2 c = 2.0 * gl_PointCoord - 1.0;
-          if(dot(c, c) > 1.0) discard;
-          gl_FragColor = vec4(col, alpha);
+          float r = dot(c, c);
+          if(r > 1.0) discard;
+
+          float t = clamp(vElevation / uHeightScale, 0.0, 1.0);
+
+          // Valley = deep blue, slopes = cyan, peaks = bright cyan-white
+          vec3 valleyCol = vec3(0.0, 0.05, 0.28);
+          vec3 hillCol   = vec3(0.0, 0.25, 0.55);
+          vec3 slopeCol  = vec3(0.0, 0.55, 0.85);
+          vec3 peakCol   = vec3(0.5, 0.9, 1.0);
+
+          vec3 col;
+          if(t < 0.25)      col = mix(valleyCol, hillCol,  t / 0.25);
+          else if(t < 0.55) col = mix(hillCol,  slopeCol, (t - 0.25) / 0.30);
+          else              col = mix(slopeCol,  peakCol,  (t - 0.55) / 0.45);
+
+          // Distance fade
+          float distFade = clamp(1.0 - vDist / 1400.0, 0.12, 1.0);
+          col *= distFade;
+
+          // Radial edge fade for terrain grid boundary
+          float radialDist = length(vLocalXZ);
+          float alpha = smoothstep(1440.0, 1100.0, radialDist);
+
+          // Soft point edge (anti-alias)
+          float softEdge = 1.0 - smoothstep(0.6, 1.0, r);
+
+          gl_FragColor = vec4(col, alpha * softEdge);
         }
       `,
-      transparent: true
+      transparent: true,
+      depthWrite: false  // prevents z-fighting / flickering between points
     });
 
     this.points = new THREE.Points(geometry, this.material);
