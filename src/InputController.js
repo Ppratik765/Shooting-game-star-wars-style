@@ -56,89 +56,81 @@ export class InputController {
     const landscapeMsg = document.createElement('div');
     landscapeMsg.id = 'landscape-prompt';
     landscapeMsg.innerHTML = `
-      <div style="
-        position:fixed; top:0; left:0; width:100vw; height:100vh;
-        background:#000; color:#00ffaa; display:flex; flex-direction:column;
-        align-items:center; justify-content:center; z-index:9999;
-        font-family:'VT323',monospace; font-size:28px; text-align:center;
-        padding:20px; text-shadow: 0 0 10px #00ffaa;
-      ">
-        <div style="font-size:60px; margin-bottom:20px;">📱↔️</div>
-        <div>ROTATE DEVICE TO LANDSCAPE</div>
-        <div style="font-size:18px; margin-top:10px; color:#ffb700;">
-          FOR BEST DOGFIGHT EXPERIENCE
-        </div>
+      <div style="font-size:60px; margin-bottom:20px;">📱↔️</div>
+      <div>ROTATE DEVICE TO LANDSCAPE</div>
+      <div style="font-size:18px; margin-top:10px; color:#ffb700;">
+        FOR BEST DOGFIGHT EXPERIENCE
       </div>
     `;
     document.body.appendChild(landscapeMsg);
-    this.landscapePrompt = landscapeMsg;
-    this._checkOrientation();
-    window.addEventListener('orientationchange', () => this._checkOrientation());
-    window.addEventListener('resize', () => this._checkOrientation());
 
     // Virtual HUD overlay
     const mobileHUD = document.createElement('div');
     mobileHUD.id = 'mobile-hud';
-    mobileHUD.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 50; pointer-events: none;
-    `;
     mobileHUD.innerHTML = `
-      <!-- Left side: look joystick area -->
-      <div id="mobile-look-zone" style="
-        position:absolute; left:0; top:0; width:50%; height:100%;
-        pointer-events:all;
-      "></div>
-
-      <!-- Shoot button: bottom right -->
-      <div id="mobile-shoot-btn" style="
-        position:absolute; right:30px; bottom:80px;
-        width:90px; height:90px; border-radius:50%;
-        background: radial-gradient(circle, rgba(255,100,0,0.4), rgba(255,50,0,0.15));
-        border: 3px solid rgba(255,100,0,0.8);
-        display:flex; align-items:center; justify-content:center;
-        color:#ff6600; font-family:'VT323',monospace; font-size:22px;
-        text-shadow: 0 0 10px #ff6600;
-        box-shadow: 0 0 20px rgba(255,100,0,0.5);
-        pointer-events:all; user-select:none;
-      ">FIRE</div>
-
-      <!-- Boost button: bottom right, above fire -->
-      <div id="mobile-boost-btn" style="
-        position:absolute; right:140px; bottom:80px;
-        width:70px; height:70px; border-radius:50%;
-        background: radial-gradient(circle, rgba(0,150,255,0.3), rgba(0,100,255,0.1));
-        border: 2px solid rgba(0,150,255,0.7);
-        display:flex; align-items:center; justify-content:center;
-        color:#0088ff; font-family:'VT323',monospace; font-size:16px;
-        text-shadow: 0 0 10px #0088ff;
-        box-shadow: 0 0 15px rgba(0,150,255,0.4);
-        pointer-events:all; user-select:none;
-      ">BOOST</div>
-
-      <!-- Gyro calibrate hint -->
-      <div id="gyro-hint" style="
-        position:absolute; top:55px; right:15px;
-        color:rgba(255,183,0,0.6); font-family:'VT323',monospace; font-size:14px;
-        text-align:right; line-height:1.4; pointer-events:none;
-      ">
-        TILT TO FLY<br>TAP LEFT TO AIM
+      <div id="mobile-joystick">
+        <div id="mobile-joystick-knob"></div>
       </div>
-
-      <!-- Lock button: top-left area of look zone -->
-      <div id="mobile-lock-btn" style="
-        position:absolute; left:20px; top:20px;
-        width:65px; height:65px; border-radius:8px;
-        background: rgba(255,0,0,0.15);
-        border: 2px solid rgba(255,0,0,0.6);
-        display:flex; align-items:center; justify-content:center;
-        color:#ff2200; font-family:'VT323',monospace; font-size:14px;
-        text-shadow: 0 0 8px #ff2200;
-        pointer-events:all; user-select:none;
-      ">LOCK</div>
+      <div id="mobile-shoot-btn">FIRE</div>
+      <div id="mobile-boost-btn">BOOST</div>
+      <div id="mobile-lock-btn">LOCK</div>
     `;
     document.body.appendChild(mobileHUD);
     this.mobileHUD = mobileHUD;
+
+    // Wire up virtual joystick
+    const joystick = document.getElementById('mobile-joystick');
+    this.joystick = {
+      active: false,
+      touchId: null,
+      startX: 0,
+      startY: 0,
+      normX: 0,
+      normY: 0
+    };
+
+    joystick.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const rect = joystick.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      
+      for (const t of e.changedTouches) {
+        if (!this.joystick.active) {
+          this.joystick.active = true;
+          this.joystick.touchId = t.identifier;
+          this.joystick.startX = centerX;
+          this.joystick.startY = centerY;
+          this._updateJoystickPos(t.clientX, t.clientY, rect.width / 2);
+        }
+      }
+    }, { passive: false });
+
+    joystick.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const rect = joystick.getBoundingClientRect();
+      for (const t of e.changedTouches) {
+        if (t.identifier === this.joystick.touchId) {
+          this._updateJoystickPos(t.clientX, t.clientY, rect.width / 2);
+        }
+      }
+    }, { passive: false });
+
+    const resetJoystick = (e) => {
+      if (!this.joystick.active) return;
+      if (e) {
+        for (const t of e.changedTouches) {
+          if (t.identifier === this.joystick.touchId) {
+            this._resetJoystickState();
+          }
+        }
+      } else {
+        this._resetJoystickState();
+      }
+    };
+
+    joystick.addEventListener('touchend', resetJoystick, { passive: false });
+    joystick.addEventListener('touchcancel', resetJoystick, { passive: false });
 
     // Wire up shoot button
     const shootBtn = document.getElementById('mobile-shoot-btn');
@@ -146,6 +138,9 @@ export class InputController {
       e.preventDefault(); this.mobileShoot = true;
     }, { passive: false });
     shootBtn.addEventListener('touchend', (e) => {
+      e.preventDefault(); this.mobileShoot = false;
+    }, { passive: false });
+    shootBtn.addEventListener('touchcancel', (e) => {
       e.preventDefault(); this.mobileShoot = false;
     }, { passive: false });
 
@@ -157,72 +152,54 @@ export class InputController {
     boostBtn.addEventListener('touchend', (e) => {
       e.preventDefault(); this.mobileBoost = false;
     }, { passive: false });
+    boostBtn.addEventListener('touchcancel', (e) => {
+      e.preventDefault(); this.mobileBoost = false;
+    }, { passive: false });
 
     // Wire up lock button
     const lockBtn = document.getElementById('mobile-lock-btn');
     lockBtn.addEventListener('touchstart', (e) => {
       e.preventDefault(); this.mouse.clickPulse = true;
     }, { passive: false });
-
-    // Look joystick (left half of screen)
-    const lookZone = document.getElementById('mobile-look-zone');
-    lookZone.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      for (const t of e.changedTouches) {
-        if (!this.lookJoystick.active) {
-          this.lookJoystick.active  = true;
-          this.lookJoystick.touchId = t.identifier;
-          this.lookJoystick.startX  = t.clientX;
-          this.lookJoystick.startY  = t.clientY;
-          this.lookJoystick.deltaX  = 0;
-          this.lookJoystick.deltaY  = 0;
-        }
-      }
-    }, { passive: false });
-
-    lookZone.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      for (const t of e.changedTouches) {
-        if (t.identifier === this.lookJoystick.touchId) {
-          const dx = t.clientX - this.lookJoystick.startX;
-          const dy = t.clientY - this.lookJoystick.startY;
-          this.lookJoystick.deltaX = dx;
-          this.lookJoystick.deltaY = dy;
-          // Update mouse position so crosshair moves
-          this._frameMovementX += dx * 0.6;
-          this._frameMovementY += dy * 0.6;
-          this.mouse.x = t.clientX;
-          this.mouse.y = t.clientY;
-          // Reset start for relative delta
-          this.lookJoystick.startX = t.clientX;
-          this.lookJoystick.startY = t.clientY;
-        }
-      }
-    }, { passive: false });
-
-    lookZone.addEventListener('touchend', (e) => {
-      for (const t of e.changedTouches) {
-        if (t.identifier === this.lookJoystick.touchId) {
-          this.lookJoystick.active  = false;
-          this.lookJoystick.touchId = null;
-          this.lookJoystick.deltaX  = 0;
-          this.lookJoystick.deltaY  = 0;
-        }
-      }
-    }, { passive: false });
   }
 
-  _checkOrientation() {
-    if (!this.landscapePrompt) return;
-    const isPortrait = window.innerHeight > window.innerWidth;
-    this.landscapePrompt.style.display = isPortrait ? 'flex' : 'none';
+  _updateJoystickPos(clientX, clientY, maxRadius) {
+    const dx = clientX - this.joystick.startX;
+    const dy = clientY - this.joystick.startY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    let limitX = dx;
+    let limitY = dy;
+    
+    if (dist > maxRadius) {
+      limitX = (dx / dist) * maxRadius;
+      limitY = (dy / dist) * maxRadius;
+    }
+    
+    const knob = document.getElementById('mobile-joystick-knob');
+    if (knob) {
+      knob.style.transform = `translate(-50%, -50%) translate(${limitX}px, ${limitY}px)`;
+    }
+    
+    this.joystick.normX = limitX / maxRadius;
+    this.joystick.normY = limitY / maxRadius;
+  }
+
+  _resetJoystickState() {
+    this.joystick.active = false;
+    this.joystick.touchId = null;
+    this.joystick.normX = 0;
+    this.joystick.normY = 0;
+    const knob = document.getElementById('mobile-joystick-knob');
+    if (knob) {
+      knob.style.transform = 'translate(-50%, -50%) translate(0px, 0px)';
+    }
   }
 
   _initGyro() {
     // iOS 13+ requires permission
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // Show a tap-to-enable banner
       const banner = document.createElement('div');
       banner.style.cssText = `
         position:fixed; bottom:200px; left:50%; transform:translateX(-50%);
@@ -248,22 +225,59 @@ export class InputController {
   }
 
   _onGyro(e) {
-    if (!this.gyroCalibrated && e.beta !== null) {
+    if (e.beta === null || e.gamma === null) return;
+
+    if (!this.gyroCalibrated) {
       this.gyroBaseBeta  = e.beta;
       this.gyroBaseGamma = e.gamma;
       this.gyroCalibrated = true;
     }
+
     this.gyro.beta  = e.beta  || 0;
     this.gyro.gamma = e.gamma || 0;
     this.gyro.alpha = e.alpha || 0;
 
-    // Map gyro to mouse movement deltas for flight control
-    if (this.gyroCalibrated) {
-      const pitchDelta = (this.gyro.beta  - this.gyroBaseBeta)  * 0.012;
-      const yawDelta   = (this.gyro.gamma - this.gyroBaseGamma) * 0.012;
-      // Gyro controls ship orientation via mouse movement simulation
-      this._frameMovementX += yawDelta   * 12;
-      this._frameMovementY += pitchDelta * 12;
+    let diffBeta = e.beta - this.gyroBaseBeta;
+    let diffGamma = e.gamma - this.gyroBaseGamma;
+
+    if (diffBeta > 180) diffBeta -= 360;
+    if (diffBeta < -180) diffBeta += 360;
+    if (diffGamma > 180) diffGamma -= 360;
+    if (diffGamma < -180) diffGamma += 360;
+
+    const orientation = window.orientation || (screen.orientation && screen.orientation.angle) || 0;
+
+    let tiltPitch = 0;
+    let tiltRoll = 0;
+
+    if (orientation === 90) {
+      tiltPitch = -diffGamma;
+      tiltRoll = -diffBeta;
+    } else if (orientation === -90 || orientation === 270) {
+      tiltPitch = diffGamma;
+      tiltRoll = diffBeta;
+    } else {
+      tiltPitch = -diffGamma;
+      tiltRoll = -diffBeta;
+    }
+
+    const threshold = 6;
+
+    this.mobileForward = false;
+    this.mobileBackward = false;
+    this.mobileLeft = false;
+    this.mobileRight = false;
+
+    if (tiltPitch > threshold) {
+      this.mobileForward = true;
+    } else if (tiltPitch < -threshold) {
+      this.mobileBackward = true;
+    }
+
+    if (tiltRoll > threshold) {
+      this.mobileLeft = true;
+    } else if (tiltRoll < -threshold) {
+      this.mobileRight = true;
     }
   }
 
@@ -315,6 +329,13 @@ export class InputController {
 
   // Called once per frame by GameManager BEFORE physics — caps and transfers accumulated input
   consumeMovement() {
+    if (this.joystick && this.joystick.active) {
+      // Adjust crosshair movement rate on mobile
+      const rate = 8;
+      this._frameMovementX += this.joystick.normX * rate;
+      this._frameMovementY += this.joystick.normY * rate;
+    }
+
     // Cap accumulated mouse delta to prevent massive jumps
     const cap = this._maxDeltaPerFrame;
     this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX));
@@ -328,10 +349,10 @@ export class InputController {
     this.mouse.movementY = 0;
   }
 
-  isForward()  { return this.keys.w || this.keys.ArrowUp; }
-  isBackward() { return this.keys.s || this.keys.ArrowDown; }
-  isLeft()     { return this.keys.a || this.keys.ArrowLeft; }
-  isRight()    { return this.keys.d || this.keys.ArrowRight; }
+  isForward()  { return this.keys.w || this.keys.ArrowUp || this.mobileForward; }
+  isBackward() { return this.keys.s || this.keys.ArrowDown || this.mobileBackward; }
+  isLeft()     { return this.keys.a || this.keys.ArrowLeft || this.mobileLeft; }
+  isRight()    { return this.keys.d || this.keys.ArrowRight || this.mobileRight; }
   isBoosting() { return this.keys.Shift || this.mobileBoost; }
   isFiring()   { return this.keys[' '] || this.mouse.isDown || this.mobileShoot; }
 

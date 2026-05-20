@@ -51,8 +51,23 @@ export class EnemyManager {
     this.onPlayerHit = null;
 
     // Diamond death markers — persist for session
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(32, 0);
+    ctx.lineTo(64, 32);
+    ctx.lineTo(32, 64);
+    ctx.lineTo(0, 32);
+    ctx.closePath();
+    ctx.fill();
+    const markerTex = new THREE.CanvasTexture(canvas);
+
     this.deathMarkers = [];
     this.markerMat = new THREE.SpriteMaterial({
+      map: markerTex,
       color: 0xffdd00,
       transparent: true,
       opacity: 0.8,

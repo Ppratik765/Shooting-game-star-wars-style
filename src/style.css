@@ -154,8 +154,99 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 /* === Arc HUD canvas sits above crosshair === */
 #arc-hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
 
+/* === Mobile Layout & Joystick === */
+#landscape-prompt {
+  display: none;
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: #000; color: #00ffaa;
+  flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999; font-family: 'VT323', monospace; font-size: 28px;
+  text-align: center; padding: 20px; text-shadow: 0 0 10px #00ffaa;
+}
+
+#mobile-hud {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 50; pointer-events: none;
+  display: none;
+}
+
+#mobile-joystick {
+  position: absolute; bottom: 25px; left: 25px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 183, 0, 0.4);
+  background: rgba(10, 5, 0, 0.15);
+  pointer-events: all;
+  box-shadow: 0 0 15px rgba(255, 183, 0, 0.1);
+}
+
+#mobile-joystick-knob {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 183, 0, 0.7);
+  background: rgba(255, 183, 0, 0.25);
+  box-shadow: 0 0 12px rgba(255, 183, 0, 0.4);
+  pointer-events: none;
+}
+
+#mobile-shoot-btn {
+  position: absolute; right: 15px; bottom: 20px;
+  width: 130px; height: 80px;
+  border-radius: 8px;
+  background: radial-gradient(circle, rgba(255,100,0,0.5), rgba(255,50,0,0.25));
+  border: 2px solid rgba(255,100,0,0.9);
+  display: flex; align-items: center; justify-content: center;
+  color: #ffaa00; font-family: 'VT323', monospace; font-size: 24px;
+  text-shadow: 0 0 10px #ff6600;
+  box-shadow: 0 0 20px rgba(255,100,0,0.4);
+  pointer-events: all; user-select: none;
+  font-weight: bold;
+}
+
+#mobile-shoot-btn:active {
+  background: radial-gradient(circle, rgba(255,150,0,0.7), rgba(255,100,0,0.4));
+  box-shadow: 0 0 30px rgba(255,100,0,0.8);
+}
+
+#mobile-boost-btn {
+  position: absolute; left: 160px; bottom: 25px;
+  width: 75px; height: 75px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,150,255,0.3), rgba(0,100,255,0.1));
+  border: 2px solid rgba(0,150,255,0.7);
+  display: flex; align-items: center; justify-content: center;
+  color: #0088ff; font-family: 'VT323', monospace; font-size: 16px;
+  text-shadow: 0 0 10px #0088ff;
+  box-shadow: 0 0 15px rgba(0,150,255,0.4);
+  pointer-events: all; user-select: none;
+}
+
+#mobile-boost-btn:active {
+  background: radial-gradient(circle, rgba(0,200,255,0.5), rgba(0,150,255,0.2));
+  box-shadow: 0 0 25px rgba(0,150,255,0.7);
+}
+
+#mobile-lock-btn {
+  position: absolute; left: 20px; top: 20px;
+  width: 65px; height: 65px;
+  border-radius: 8px;
+  background: rgba(255,0,0,0.15);
+  border: 2px solid rgba(255,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  color: #ff2200; font-family: 'VT323', monospace; font-size: 14px;
+  text-shadow: 0 0 8px #ff2200;
+  pointer-events: all; user-select: none;
+}
+
+#mobile-lock-btn:active {
+  background: rgba(255,0,0,0.35);
+  box-shadow: 0 0 15px rgba(255,0,0,0.8);
+}
+
 /* === Mobile layout adjustments === */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   #hud-top-container { top: 45px; left: 8px; right: 8px; }
   #activity-feed { width: 160px; height: 80px; font-size: 11px; }
   #stats-container { width: 110px; font-size: 13px; }
@@ -164,13 +255,24 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
   #game-over-static { width: 280px; }
   #game-over-stats { font-size: 22px; }
   #retry-button { font-size: 18px; }
-  #radar-container { width: 140px; height: 140px; bottom: 15px; right: 15px; }
+  
+  #radar-container { 
+    width: 130px; height: 130px; 
+    bottom: 120px; right: 15px; 
+  }
+  
+  #mobile-hud {
+    display: block;
+  }
 }
 
-@media (orientation: portrait) {
+@media (max-width: 1024px) and (orientation: portrait) {
   /* All game UI hidden in portrait — landscape prompt takes over */
+  #landscape-prompt { display: flex; }
   #ui-layer, #app { display: none; }
 }
-@media (orientation: landscape) {
+
+@media (max-width: 1024px) and (orientation: landscape) {
+  #landscape-prompt { display: none; }
   #ui-layer, #app { display: block; }
 }
