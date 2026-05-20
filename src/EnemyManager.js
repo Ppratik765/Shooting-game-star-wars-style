@@ -227,11 +227,19 @@ export class EnemyManager {
         continue; // skip normal AI
       }
 
-      // --- Predictive interception ---
+      // --- Dumb Orbit Targeting (keeps distance and circles player) ---
       const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
-      const predictedPos = playerPos.clone().addScaledVector(playerVel, PREDICT_TIME);
+      
+      // Calculate slow orbit target around the player at 400-480 units
+      const orbitRadius = 400 + (i % 3) * 40;
+      const angleSpeed = 0.0003 + (i % 3) * 0.0002;
+      const orbitAngle = Date.now() * angleSpeed + i * 1.5;
 
-      let targetPos = predictedPos.clone();
+      let targetPos = playerPos.clone().add(new THREE.Vector3(
+        Math.sin(orbitAngle) * orbitRadius,
+        (i % 2 === 0 ? 30 : -20), // slight vertical offset
+        Math.cos(orbitAngle) * orbitRadius
+      ));
 
       if (enemy.formationLeader && enemy.formationLeader.active && !enemy.formationLeader.dying) {
         const leaderPos = enemy.formationLeader.mesh.position;
@@ -248,32 +256,7 @@ export class EnemyManager {
         } else if (enemy.strategy === 'trench' && this.terrain) {
           const eH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
           targetPos.y = eH + 22;
-        } else if (enemy.strategy === 'flanker') {
-          const angle = Date.now() * 0.0008 + i * 1.3;
-          targetPos.x += Math.sin(angle) * 120;
-          targetPos.z += Math.cos(angle) * 120;
-          targetPos.y = playerPos.y + 20;
         }
-      }
-
-      // Overshoot / Fly-by maneuver: if close and charging at the player, lock a straight trajectory to zoom past
-      if (enemy.overshootTimer === undefined) {
-        enemy.overshootTimer = 0;
-        enemy.overshootDir = new THREE.Vector3();
-      }
-
-      if (distToPlayer < 250 && enemy.overshootTimer <= 0) {
-        const toPlayer = new THREE.Vector3().subVectors(playerPos, enemy.mesh.position).normalize();
-        const enemyFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.mesh.quaternion);
-        if (enemyFwd.dot(toPlayer) > 0.3) {
-          enemy.overshootTimer = 1.6 + Math.random() * 0.8; // Fly straight past for 1.6 to 2.4s
-          enemy.overshootDir.copy(enemyFwd);
-        }
-      }
-
-      if (enemy.overshootTimer > 0) {
-        enemy.overshootTimer -= deltaTime;
-        targetPos.copy(enemy.mesh.position).addScaledVector(enemy.overshootDir, 500);
       }
 
       // Terrain avoidance
@@ -302,13 +285,13 @@ export class EnemyManager {
 
 
 
-      let baseSpeed = 150 + i * 1.5;
-      if (enemy.strategy === 'interceptor') baseSpeed = 220;
-      if (enemy.strategy === 'flanker')     baseSpeed = 180;
+      let baseSpeed = 110 + i * 1.2;
+      if (enemy.strategy === 'interceptor') baseSpeed = 140;
+      if (enemy.strategy === 'flanker')     baseSpeed = 120;
 
       const targetVelocity = dir.clone().multiplyScalar(baseSpeed);
       targetVelocity.addScaledVector(enemy.evasionDir, 12);
-      enemy.velocity.lerp(targetVelocity, 2.5 * deltaTime);
+      enemy.velocity.lerp(targetVelocity, 1.2 * deltaTime);
 
       enemy.mesh.position.addScaledVector(enemy.velocity, deltaTime);
       if (enemy.velocity.lengthSq() > 0.01) {
@@ -333,7 +316,7 @@ export class EnemyManager {
       }
 
       // Enemy shooting
-      if (distToPlayer < 350) {
+      if (distToPlayer < 700) {
         enemy.fireTimer += deltaTime;
         if (enemy.fireTimer >= enemy.fireInterval) {
           enemy.fireTimer = 0;
@@ -361,7 +344,7 @@ export class EnemyManager {
 
     const aimDir = new THREE.Vector3().subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
 
-    const spread = 0.07; // Much more accurate than 0.22, but still misses sometimes
+    const spread = 0.12; // Stormtrooper aim: cinematic misses
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
     aimDir.z += (Math.random() - 0.5) * spread;
@@ -540,7 +523,7 @@ export class EnemyManager {
     const sprite = new THREE.Sprite(this.markerMat.clone());
     sprite.position.copy(position);
     sprite.position.y += 10; // slightly above terrain
-    sprite.scale.set(22, 22, 1);
+    sprite.scale.set(12, 12, 1);
     this.scene.add(sprite);
     this.deathMarkers.push(sprite);
   }
