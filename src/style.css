@@ -5,22 +5,68 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
 
 /* === CRT Overlay === */
-#crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%); background-size: 100% 4px; z-index: 99; pointer-events: none; }
-#crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(0,255,0,0.03) 0%, rgba(0,0,0,0.4) 100%); z-index: 100; pointer-events: none; mix-blend-mode: overlay; box-shadow: inset 0 0 100px rgba(0,0,0,0.9); }
+#crt-scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.22) 50%); background-size: 100% 4px; z-index: 99; pointer-events: none; }
+#crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(0,255,0,0.02) 0%, rgba(0,0,0,0.35) 100%); z-index: 100; pointer-events: none; mix-blend-mode: overlay; box-shadow: inset 0 0 100px rgba(0,0,0,0.9); }
 
-/* === Tactical Radar === */
-#radar-container { position: absolute; bottom: 25px; right: 25px; width: 180px; height: 180px; border: 2px solid rgba(255,183,0,0.5); border-radius: 50%; background: rgba(10,5,0,0.6); box-shadow: 0 0 15px rgba(255,183,0,0.2), inset 0 0 20px rgba(255,183,0,0.1); overflow: hidden; }
-.radar-grid { position: absolute; width: 100%; height: 100%; background: 
-  linear-gradient(90deg, transparent 49%, rgba(255,183,0,0.3) 49%, rgba(255,183,0,0.3) 51%, transparent 51%),
-  linear-gradient(0deg, transparent 49%, rgba(255,183,0,0.3) 49%, rgba(255,183,0,0.3) 51%, transparent 51%); 
+/* === Tactical Radar (Sonar style) === */
+#radar-container {
+  position: absolute; bottom: 25px; right: 25px;
+  width: 180px; height: 180px;
+  border: 2px solid rgba(255,183,0,0.5); border-radius: 50%;
+  background: rgba(5,10,5,0.75);
+  box-shadow: 0 0 15px rgba(255,183,0,0.2), inset 0 0 20px rgba(255,183,0,0.1);
+  overflow: hidden;
+}
+.radar-grid {
+  position: absolute; width: 100%; height: 100%;
+  background: 
+    linear-gradient(90deg, transparent 49%, rgba(255,183,0,0.25) 49%, rgba(255,183,0,0.25) 51%, transparent 51%),
+    linear-gradient(0deg,  transparent 49%, rgba(255,183,0,0.25) 49%, rgba(255,183,0,0.25) 51%, transparent 51%);
   border-radius: 50%;
 }
-.radar-grid::after { content: ''; position: absolute; top: 25%; left: 25%; right: 25%; bottom: 25%; border: 1px solid rgba(255,183,0,0.3); border-radius: 50%; }
-.radar-player { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 4px; height: 4px; background: #00ffaa; border-radius: 50%; box-shadow: 0 0 5px #00ffaa; }
-.radar-sweep { position: absolute; top: 0; left: 50%; width: 50%; height: 50%; background: linear-gradient(90deg, rgba(255,183,0,0.5), transparent); transform-origin: bottom left; animation: radar-spin 4s linear infinite; }
+.radar-grid::after {
+  content: ''; position: absolute; top: 25%; left: 25%; right: 25%; bottom: 25%;
+  border: 1px solid rgba(255,183,0,0.25); border-radius: 50%;
+}
+.radar-player {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 5px; height: 5px; background: #00ffaa; border-radius: 50%;
+  box-shadow: 0 0 6px #00ffaa;
+}
+/* Sonar sweep line */
+.radar-sweep {
+  position: absolute; top: 0; left: 50%; width: 50%; height: 50%;
+  background: conic-gradient(from 0deg, rgba(0,255,100,0.6) 0deg, transparent 40deg);
+  transform-origin: bottom left;
+  animation: radar-spin 3s linear infinite;
+}
+/* Sonar ping ring */
+#radar-container.sonar-ping::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 90%; height: 90%; border-radius: 50%;
+  border: 2px solid rgba(0,255,100,0.8);
+  animation: sonar-ring 3s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes sonar-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
+}
 @keyframes radar-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 #radar-blips { position: absolute; width: 100%; height: 100%; }
-.radar-blip { position: absolute; width: 4px; height: 4px; background: #ff0000; border-radius: 50%; box-shadow: 0 0 5px #ff0000; transform: translate(-50%, -50%); }
+.radar-blip {
+  position: absolute; width: 5px; height: 5px;
+  background: #ff2200; border-radius: 50%;
+  box-shadow: 0 0 6px #ff2200; transform: translate(-50%, -50%);
+  animation: blip-fade 3s ease-out forwards;
+}
+@keyframes blip-fade {
+  0%   { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  70%  { opacity: 0.8; }
+  100% { opacity: 0.3; }
+}
 
 /* === Target Lock === */
 #target-lock { position: absolute; display: none; width: 80px; height: 80px; transform: translate(-50%, -50%); pointer-events: none; transition: left 0.1s, top 0.1s; }
@@ -32,6 +78,8 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 .lock-text { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: #ff0000; font-size: 14px; text-shadow: 0 0 5px #ff0000; font-weight: bold; }
 #target-lock.active { display: block; animation: lock-pulse 0.5s infinite alternate; }
 @keyframes lock-pulse { from { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; } to { transform: translate(-50%, -50%) scale(0.9); opacity: 1; } }
+
+/* === Warning Container === */
 #warning-container { position: absolute; top: 55px; left: 50%; transform: translateX(-50%); z-index: 50; text-align: center; }
 .warning-text { display: none; font-size: 38px; font-weight: bold; letter-spacing: 4px; padding: 5px 20px; animation: blink-warn 0.4s infinite alternate; }
 .warning-text.active { display: block; }
@@ -53,7 +101,7 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 #activity-feed { width: 220px; height: 100px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; font-size: 13px; }
 .log-entry { animation: fadeOut 5s forwards; margin-bottom: 2px; }
 .log-entry.critical { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
-.log-entry.warning { color: #ff8800; text-shadow: 0 0 5px #ff8800; }
+.log-entry.warning  { color: #ff8800; text-shadow: 0 0 5px #ff8800; }
 @keyframes fadeOut { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 
 /* === Stats === */
@@ -61,17 +109,17 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 .stat-line { margin-bottom: 1px; }
 
 /* === Crosshair === */
-#crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; display: flex; justify-content: space-between; align-items: center; color: #ffb700; font-size: 24px; font-weight: bold; text-shadow: 0 0 8px #ffb700; will-change: transform; transition: width 0.2s ease; }
+#crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; display: flex; justify-content: space-between; align-items: center; color: #ffb700; font-size: 24px; font-weight: bold; text-shadow: 0 0 8px #ffb700; will-change: transform; }
 .crosshair-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 16px; opacity: 0.8; }
 
-/* === Meters (Bottom) === */
-#meters-container { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; width: 500px; }
+/* === Bottom Meters (hull only, arc HUD handles rest) === */
+#meters-container { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; width: 200px; }
 .meter { flex: 1; text-align: center; }
 .meter-label { font-size: 13px; margin-bottom: 2px; text-shadow: 0 0 5px #ffb700; letter-spacing: 1px; }
 .meter-bg { width: 100%; height: 7px; border: 1px solid #ffb700; background: rgba(20,10,0,0.5); position: relative; overflow: hidden; }
 #health-bar-fill { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #00ffaa; transition: width 0.2s; box-shadow: 0 0 8px #00ffaa; }
-#stamina-bar-fill { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; background: #ffb700; transition: width 0.1s; box-shadow: 0 0 8px #ffb700; }
-#charge-bar-fill { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100%; height: 100%; background: #00aaff; transition: width 0.1s; box-shadow: 0 0 8px #00aaff; }
+/* Hide old stamina/charge meters from DOM initially */
+#stamina-container, #charge-container { display: none !important; }
 
 /* === Enemy UI === */
 #enemy-ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -79,21 +127,22 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 .enemy-hp-fill { height: 100%; background: #ff0000; box-shadow: 0 0 5px #ff0000; width: 100%; }
 
 /* === Damage Flash === */
-#damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,0,0,0) 30%, rgba(255,0,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.5s ease-out; }
+#damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,0,0,0) 30%, rgba(255,0,0,0.65) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.5s ease-out; }
 .hit-flash { opacity: 1 !important; transition: none !important; }
 
-/* === Boost Vignette === */
-#boost-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 20%, rgba(255,100,0,0.6) 100%); opacity: 0; pointer-events: none; z-index: 4; transition: opacity 0.2s ease; }
-#boost-vignette.active { opacity: 1; }
+/* === Boost Vignette — BLUE === */
+#boost-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 15%, rgba(0,100,255,0.55) 100%); opacity: 0; pointer-events: none; z-index: 4; transition: opacity 0.2s ease; }
+#boost-vignette.active { opacity: 1; animation: boost-pulse 0.4s infinite alternate; }
+@keyframes boost-pulse { from { opacity: 0.8; } to { opacity: 1; } }
 
 /* === Altitude Warning === */
-#altitude-warning { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 30%, rgba(255,0,0,0.4) 100%); opacity: 0; pointer-events: none; z-index: 6; transition: opacity 0.3s ease; display: flex; align-items: center; justify-content: center; }
+#altitude-warning { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 30%, rgba(255,0,0,0.35) 100%); opacity: 0; pointer-events: none; z-index: 6; transition: opacity 0.3s ease; display: flex; align-items: center; justify-content: center; }
 #altitude-warning.active { opacity: 1; animation: alt-pulse 0.5s infinite alternate; }
-#altitude-warning .warning-text { color: #ff0000; font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 4px; text-shadow: 0 0 10px #ff0000; }
+#altitude-warning .warning-text { color: #ff0000; font-family: 'VT323', monospace; font-size: 24px; font-weight: 800; letter-spacing: 4px; text-shadow: 0 0 10px #ff0000; }
 @keyframes alt-pulse { from { opacity: 0.4; } to { opacity: 1.0; } }
 
 /* === Game Over Screen === */
-#game-over-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 200; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; flex-direction: column; pointer-events: all; }
+#game-over-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 200; background: rgba(0,0,0,0.88); justify-content: center; align-items: center; flex-direction: column; pointer-events: all; }
 #game-over-screen.active { display: flex; }
 #game-over-content { text-align: center; }
 #game-over-title { font-size: 72px; color: #ff0000; text-shadow: 0 0 30px #ff0000, 0 0 60px #ff0000; margin-bottom: 10px; letter-spacing: 8px; animation: blink-warn 0.6s infinite alternate; }
@@ -101,3 +150,27 @@ html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0
 #game-over-stats { font-size: 28px; color: #ffb700; text-shadow: 0 0 10px #ffb700; margin: 25px 0; line-height: 1.6; }
 #retry-button { font-family: 'VT323', monospace; font-size: 24px; color: #00ffaa; background: transparent; border: 2px solid #00ffaa; padding: 12px 30px; cursor: pointer; text-shadow: 0 0 10px #00ffaa; box-shadow: 0 0 10px #00ffaa; transition: all 0.2s; letter-spacing: 2px; pointer-events: all; }
 #retry-button:hover { background: rgba(0,255,170,0.15); box-shadow: 0 0 25px #00ffaa; }
+
+/* === Arc HUD canvas sits above crosshair === */
+#arc-hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+
+/* === Mobile layout adjustments === */
+@media (max-width: 768px) {
+  #hud-top-container { top: 45px; left: 8px; right: 8px; }
+  #activity-feed { width: 160px; height: 80px; font-size: 11px; }
+  #stats-container { width: 110px; font-size: 13px; }
+  #compass-container { width: 180px; }
+  #game-over-title { font-size: 48px; }
+  #game-over-static { width: 280px; }
+  #game-over-stats { font-size: 22px; }
+  #retry-button { font-size: 18px; }
+  #radar-container { width: 140px; height: 140px; bottom: 15px; right: 15px; }
+}
+
+@media (orientation: portrait) {
+  /* All game UI hidden in portrait — landscape prompt takes over */
+  #ui-layer, #app { display: none; }
+}
+@media (orientation: landscape) {
+  #ui-layer, #app { display: block; }
+}
