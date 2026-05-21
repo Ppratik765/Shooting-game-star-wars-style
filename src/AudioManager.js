@@ -10,14 +10,14 @@
  */
 
 import * as THREE from 'three';
-import engineSrc from './assets/Player_engine.m4a';
-import laserSrc from './assets/laser_bullet.m4a';
-import boostSrc from './assets/boost_sound.m4a';
-import explosionSrc from './assets/Enemy_down_explosion.m4a';
-import flybySrc from './assets/Enemy_flyby.m4a';
-import hoverSrc from './assets/hover.wav';
-import clickSrc from './assets/click.wav';
-import gruntSrc from './assets/Grunt.m4a';
+import engineSrc from './assets/Player_engine.m4a?url';
+import laserSrc from './assets/laser_bullet.m4a?url';
+import boostSrc from './assets/boost_sound.m4a?url';
+import explosionSrc from './assets/Enemy_down_explosion.m4a?url';
+import flybySrc from './assets/Enemy_flyby.m4a?url';
+import hoverSrc from './assets/hover.wav?url';
+import clickSrc from './assets/click.wav?url';
+import gruntSrc from './assets/Grunt.m4a?url';
 
 export class AudioManager {
   constructor() {
@@ -64,13 +64,13 @@ export class AudioManager {
 
     // Preload audio files via fetch
     this._filesToLoad = [
+      { key: 'hover', src: hoverSrc },
+      { key: 'click', src: clickSrc },
       { key: 'engine', src: engineSrc },
       { key: 'laser', src: laserSrc },
       { key: 'boost', src: boostSrc },
       { key: 'explosion', src: explosionSrc },
       { key: 'flyby', src: flybySrc },
-      { key: 'hover', src: hoverSrc },
-      { key: 'click', src: clickSrc },
       { key: 'grunt', src: gruntSrc }
     ];
 
@@ -100,17 +100,39 @@ export class AudioManager {
   async _preload() {
     if (!this.ctx) return;
 
-    // Decode all audio buffers in parallel in the background
-    const decodePromises = this._filesToLoad.map(async ({ key, src }) => {
+    // Separate priority assets (UI hover/click) from background gameplay assets
+    const priorityKeys = ['hover', 'click'];
+    const priorityFiles = this._filesToLoad.filter(f => priorityKeys.includes(f.key));
+    const backgroundFiles = this._filesToLoad.filter(f => !priorityKeys.includes(f.key));
+
+    // 1. Fetch & decode priority UI sounds first (so they are playable ASAP)
+    const priorityPromises = priorityFiles.map(async ({ key, src }) => {
       try {
+        if (!src) throw new Error(`Source for ${key} is undefined`);
         const response = await fetch(src);
+        if (!response.ok) throw new Error(`HTTP status: ${response.status}`);
         const arrayBuffer = await response.arrayBuffer();
         this.buffers[key] = await this.ctx.decodeAudioData(arrayBuffer);
       } catch (err) {
-        console.warn(`AudioManager: failed to preload ${key}`, err);
+        console.warn(`AudioManager: failed to preload priority UI asset ${key}`, err);
       }
     });
-    await Promise.all(decodePromises);
+    await Promise.all(priorityPromises);
+
+    // 2. Fetch & decode background assets in parallel
+    const backgroundPromises = backgroundFiles.map(async ({ key, src }) => {
+      try {
+        if (!src) throw new Error(`Source for ${key} is undefined`);
+        const response = await fetch(src);
+        if (!response.ok) throw new Error(`HTTP status: ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        this.buffers[key] = await this.ctx.decodeAudioData(arrayBuffer);
+      } catch (err) {
+        console.warn(`AudioManager: failed to preload background asset ${key}`, err);
+      }
+    });
+
+    await Promise.all(backgroundPromises);
     this.ready = true;
   }
 
@@ -438,7 +460,7 @@ export class AudioManager {
   // ─── UI & Grunt ────────────────────────────────────────────────────
 
   playUIHover() {
-    if (!this.ready || !this.buffers.hover) return;
+    if (!this.buffers.hover) return;
     if (this.ctx.state !== 'running') return; // Only play if context is running
 
     const source = this.ctx.createBufferSource();
@@ -453,7 +475,7 @@ export class AudioManager {
   }
 
   async playUIClick() {
-    if (!this.ready || !this.buffers.click) return;
+    if (!this.buffers.click) return;
     if (this.ctx && this.ctx.state === 'suspended') {
       await this.ctx.resume();
     }
