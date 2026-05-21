@@ -73,3 +73,33 @@ function animate() {
 }
 
 animate();
+
+// === UI Audio & Autoplay Policy Fix ===
+
+// 1. Wire up the hover and click sounds to all buttons on the screen
+const menuButtons = document.querySelectorAll('#btn-how-to-play, #btn-close-modal, #tab-desktop, #tab-mobile, button');
+
+menuButtons.forEach(btn => {
+  btn.addEventListener('mouseenter', () => {
+    // Access the audioManager that lives inside your gameManager
+    if (gameManager.audioManager) {
+      gameManager.audioManager.playUIHover();
+    }
+  });
+
+  btn.addEventListener('click', () => {
+    if (gameManager.audioManager) {
+      gameManager.audioManager.playUIClick();
+    }
+  });
+});
+
+// 2. The "Global Unlock" Hack
+// This listens for the very first click ANYWHERE on the document.
+// It instantly unlocks the AudioContext so subsequent hovers will work perfectly.
+document.body.addEventListener('click', async () => {
+  const am = gameManager.audioManager;
+  if (am && am.ctx && am.ctx.state === 'suspended') {
+    await am.ctx.resume();
+  }
+}, { once: true }); // { once: true } ensures this only fires exactly once
