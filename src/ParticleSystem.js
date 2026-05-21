@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 
 export class ParticleSystem {
-  constructor(scene) {
+  constructor(scene, isMobile = false) {
     this.scene = scene;
+    this.isMobile = isMobile;
 
-    this.maxParticles = 4000;  // Reduced for perf
+    this.maxParticles = isMobile ? 1500 : 4000;
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const material = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
 
@@ -84,7 +85,8 @@ export class ParticleSystem {
   }
 
   spawnAirburst(position) {
-    for (let i = 0; i < 120; i++) {
+    const burstCount = this.isMobile ? 50 : 120;
+    for (let i = 0; i < burstCount; i++) {
       const p = this._getFree();
       if (!p) break;
       p.active = true;
@@ -115,7 +117,8 @@ export class ParticleSystem {
   }
 
   spawnGroundExplosion(position) {
-    for (let i = 0; i < 80; i++) {
+    const groundCount = this.isMobile ? 30 : 80;
+    for (let i = 0; i < groundCount; i++) {
       const p = this._getFree();
       if (!p) break;
       p.active = true;
@@ -141,7 +144,8 @@ export class ParticleSystem {
 
     for (const c of config) {
       // Create a ring mesh that expands from crash point
-      const ringGeom = new THREE.RingGeometry(0.5, 3.0, 32);
+      const ringSeg = this.isMobile ? 16 : 32;
+      const ringGeom = new THREE.RingGeometry(0.5, 3.0, ringSeg);
       ringGeom.rotateX(-Math.PI / 2); // lay flat on XZ plane
 
       const ringMat = new THREE.MeshBasicMaterial({
@@ -189,7 +193,8 @@ export class ParticleSystem {
 
       // Rebuild ring geometry at current radius
       sw.mesh.geometry.dispose();
-      const newGeom = new THREE.RingGeometry(innerRadius, outerRadius, 32);
+      const ringSeg = this.isMobile ? 16 : 32;
+      const newGeom = new THREE.RingGeometry(innerRadius, outerRadius, ringSeg);
       newGeom.rotateX(-Math.PI / 2);
 
       // Displace ring vertices to follow terrain

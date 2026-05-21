@@ -4,11 +4,12 @@ export class PlayerShip {
   constructor(camera) {
     this.camera = camera;
 
-    this.pitch = 0;
+    this.pitch = -0.05; // slight nose-down so terrain visibly scrolls from frame 1
     this.yaw   = 0;
     this.roll  = 0;
 
-    this.velocity = new THREE.Vector3();
+    // Seed initial forward velocity so the ship is already in motion at spawn
+    this.velocity = new THREE.Vector3(0, 0, -140);
     const rx = (Math.random() - 0.5) * 10000;
     const rz = (Math.random() - 0.5) * 10000;
     this.camera.position.set(rx, 480, rz);  // Random spawn height
@@ -147,11 +148,11 @@ export class PlayerShip {
     }
 
     if (input.isMobile) {
-      this.throttle = 110;
+      this.throttle = 125;
       if (input.isBoosting() && !this.staminaDepleted) {
         this.isBoosting  = true;
         this.targetFOV = this.baseFOV + 20;
-        this.throttle  = 280;
+        this.throttle  = 310;
       } else {
         this.isBoosting = false;
         this.targetFOV  = this.baseFOV;

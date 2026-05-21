@@ -6,31 +6,40 @@ import { GameManager } from './GameManager.js';
 
 const appContainer = document.getElementById('app');
 
+const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
+
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+// Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate
+renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ReinhardToneMapping;
 appContainer.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x000a40, 0.0015);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+// Mobile: denser fog = shorter draw distance = fewer fragments
+scene.fog = new THREE.FogExp2(0x000a40, isMobile ? 0.0025 : 0.0015);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, isMobile ? 1400 : 2000);
 
-// Post-processing
-const renderScene = new RenderPass(scene, camera);
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.0,  // strength (reduced from 2.0)
-  0.3,  // radius (reduced from 0.4)
-  0.15  // threshold
-);
+// Post-processing — skip bloom entirely on mobile (biggest GPU savings)
+let composer = null;
+let useComposer = !isMobile;
 
-const composer = new EffectComposer(renderer);
-composer.addPass(renderScene);
-composer.addPass(bloomPass);
+if (useComposer) {
+  const renderScene = new RenderPass(scene, camera);
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.0,  // strength
+    0.3,  // radius
+    0.15  // threshold
+  );
+  composer = new EffectComposer(renderer);
+  composer.addPass(renderScene);
+  composer.addPass(bloomPass);
+}
 
-// Game
-const gameManager = new GameManager(scene, camera);
+// Game — pass isMobile so subsystems can scale down
+const gameManager = new GameManager(scene, camera, isMobile);
 
 // Resize
 window.addEventListener('resize', () => {
@@ -39,19 +48,22 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
-  composer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
 });
 
-// Game loop — fixed timestep accumulator for stable 60fps
+// Game loop
 const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-  // Cap delta to prevent spiral-of-death & massive jumps after tab switch
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.getElapsedTime();
   gameManager.update(dt, t);
-  composer.render();
+  if (useComposer) {
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 animate();

@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 
 export class WeaponSystem {
-  constructor(scene, camera, enemyManager, uiManager) {
+  constructor(scene, camera, enemyManager, uiManager, isMobile = false) {
     this.scene = scene;
     this.camera = camera;
     this.enemyManager = enemyManager;
     this.uiManager = uiManager;
+    this.isMobile = isMobile;
 
     // Charge system
     this.maxCharge = 70;
@@ -20,27 +21,62 @@ export class WeaponSystem {
     this.lastFireTime = 0;
     this.lockedEnemy = null;
 
-    // Object pool
-    this.poolSize = 70;
+    // Object pool — smaller on mobile
+    this.poolSize = isMobile ? 35 : 70;
     this.pool = [];
 
     // Laser bolt geometry: thin retro-futuristic CRT laser
-    const segments = 8;
+    const segments = isMobile ? 5 : 8;
     const boltLength = 160;
     const boltRadius = 0.10;
-    const geom = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLength, segments, 6);
+    const geom = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLength, segments, isMobile ? 1 : 6);
     geom.rotateX(-Math.PI / 2);
     this.boltGeom = geom;
 
     // Inner core geometry (smaller cylinder for hot plasma core)
-    const coreGeom = new THREE.CylinderGeometry(boltRadius * 0.3, boltRadius * 0.3, boltLength, 6, 1);
+    const coreGeom = new THREE.CylinderGeometry(boltRadius * 0.3, boltRadius * 0.3, boltLength, isMobile ? 4 : 6, 1);
     coreGeom.rotateX(-Math.PI / 2);
     this.coreGeom = coreGeom;
 
-    // Glow cylinder mesh overlay for plasma effect
-    const glowGeom = new THREE.CylinderGeometry(boltRadius * 4.5, boltRadius * 4.5, boltLength * 1.05, 8, 1);
-    glowGeom.rotateX(-Math.PI / 2);
-    this.glowGeom = glowGeom;
+    // Glow cylinder mesh overlay for plasma effect — SKIP on mobile (expensive shader)
+    let glowGeom = null;
+    let glowMat = null;
+    if (!isMobile) {
+      glowGeom = new THREE.CylinderGeometry(boltRadius * 4.5, boltRadius * 4.5, boltLength * 1.05, 8, 1);
+      glowGeom.rotateX(-Math.PI / 2);
+      this.uniforms = { uTime: { value: 0 } };
+      glowMat = new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: `
+          varying vec2 vUv;
+          varying vec3 vLocalPos;
+          void main() {
+            vUv = uv;
+            vLocalPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          varying vec2 vUv;
+          varying vec3 vLocalPos;
+          void main() {
+            float scanline = sin(vLocalPos.z * 1.5 - uTime * 30.0) * 0.5 + 0.5;
+            vec3 baseColor = vec3(1.0, 0.55, 0.0);
+            vec3 altColor = vec3(1.0, 0.75, 0.1);
+            vec3 finalColor = mix(baseColor, altColor, scanline);
+            float lengthFade = smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
+            gl_FragColor = vec4(finalColor * 2.5, lengthFade * 0.9 * scanline);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+    } else {
+      this.uniforms = { uTime: { value: 0 } };
+    }
 
     // Shared Materials for performance
     const mat = new THREE.MeshBasicMaterial({
@@ -58,44 +94,6 @@ export class WeaponSystem {
       blending: THREE.AdditiveBlending
     });
 
-    // Shared ShaderMaterial for retro-futuristic plasma glow with scanlines
-    this.uniforms = { uTime: { value: 0 } };
-    const glowMat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vLocalPos;
-        void main() {
-          vUv = uv;
-          vLocalPos = position;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        varying vec2 vUv;
-        varying vec3 vLocalPos;
-        void main() {
-          // Retro scanlines moving along Z (which is the length of the cylinder)
-          float scanline = sin(vLocalPos.z * 1.5 - uTime * 30.0) * 0.5 + 0.5;
-          
-          // RGB Split Style Holographic color
-          vec3 baseColor = vec3(1.0, 0.55, 0.0); // Vibrant orange
-          vec3 altColor = vec3(1.0, 0.75, 0.1);  // Amber-Yellow shift
-          vec3 finalColor = mix(baseColor, altColor, scanline);
-          
-          // Fading at ends of cylinder
-          float lengthFade = smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
-          
-          gl_FragColor = vec4(finalColor * 2.5, lengthFade * 0.9 * scanline);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide
-    });
-
     for (let i = 0; i < this.poolSize; i++) {
       const mesh = new THREE.Mesh(this.boltGeom, mat);
       mesh.visible = false;
@@ -105,9 +103,12 @@ export class WeaponSystem {
       coreMesh.visible = false;
       this.scene.add(coreMesh);
 
-      const glow = new THREE.Mesh(this.glowGeom, glowMat);
-      glow.visible = false;
-      this.scene.add(glow);
+      let glow = null;
+      if (!isMobile && glowGeom && glowMat) {
+        glow = new THREE.Mesh(glowGeom, glowMat);
+        glow.visible = false;
+        this.scene.add(glow);
+      }
 
       this.pool.push({
         mesh, coreMesh, glow,
@@ -181,8 +182,10 @@ export class WeaponSystem {
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
       p.coreMesh.position.copy(p.mesh.position);
       p.coreMesh.quaternion.copy(p.mesh.quaternion);
-      p.glow.position.copy(p.mesh.position);
-      p.glow.quaternion.copy(p.mesh.quaternion);
+      if (p.glow) {
+        p.glow.position.copy(p.mesh.position);
+        p.glow.quaternion.copy(p.mesh.quaternion);
+      }
 
       this._checkCollisions(p);
     }
@@ -243,9 +246,11 @@ export class WeaponSystem {
     p.coreMesh.visible = true;
     p.coreMesh.quaternion.copy(p.mesh.quaternion);
 
-    p.glow.position.copy(origin);
-    p.glow.quaternion.copy(p.mesh.quaternion);
-    p.glow.visible = true;
+    if (p.glow) {
+      p.glow.position.copy(origin);
+      p.glow.quaternion.copy(p.mesh.quaternion);
+      p.glow.visible = true;
+    }
 
     p.velocity.copy(velocity);
     p.direction.copy(direction);
@@ -257,7 +262,7 @@ export class WeaponSystem {
     p.active = false;
     p.mesh.visible = false;
     p.coreMesh.visible = false;
-    p.glow.visible = false;
+    if (p.glow) p.glow.visible = false;
     p.trackingTarget = null;
   }
 

@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 
 export class EnemyManager {
-  constructor(scene, particleSystem, playerShip) {
+  constructor(scene, particleSystem, playerShip, isMobile = false) {
     this.scene = scene;
     this.particleSystem = particleSystem;
     this.playerShip = playerShip;
     this.terrain = null;
+    this.isMobile = isMobile;
 
     this.enemies = [];
-    this.maxEnemies = 20;
+    this.maxEnemies = isMobile ? 12 : 20;
 
     // Build translucent red wireframe TIE variants
     this.tieMeshes = this._buildWireframeTIEVariants();
@@ -76,9 +77,10 @@ export class EnemyManager {
 
     // Enemy projectile pool
     this.enemyProjectiles = [];
-    this.maxEnemyProjectiles = 60;
+    this.maxEnemyProjectiles = isMobile ? 30 : 60;
     // Green horizontal cylinder bolts with irregularities
-    const bulletGeom = new THREE.CylinderGeometry(0.5, 0.5, 12, 6, 3);
+    const bulletSegs = isMobile ? 4 : 6;
+    const bulletGeom = new THREE.CylinderGeometry(0.5, 0.5, 12, bulletSegs, isMobile ? 1 : 3);
     bulletGeom.rotateX(-Math.PI / 2);  // align along -Z for lookAt
     // Add vertex displacement for imperfections
     const bPos = bulletGeom.attributes.position;
@@ -304,10 +306,8 @@ export class EnemyManager {
       if (enemy.strategy === 'interceptor') baseSpeed = 140;
       if (enemy.strategy === 'flanker')     baseSpeed = 120;
 
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-        || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
-      if (isMobile) {
-        baseSpeed *= 0.72;
+      if (this.isMobile) {
+        baseSpeed *= 0.78;
       }
 
       const targetVelocity = dir.clone().multiplyScalar(baseSpeed);

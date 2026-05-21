@@ -84,7 +84,7 @@ export class InputController {
         <div id="mobile-joystick-knob"></div>
       </div>
       <div id="mobile-shoot-btn" aria-label="Fire">
-        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 100, 0, 0.9)" stroke-width="2.5" style="filter: drop-shadow(0 0 8px rgba(255,100,0,0.5));">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 100, 0, 0.9)" stroke-width="2.5" style="filter: drop-shadow(0 0 8px rgba(255,100,0,0.5)); transform: rotate(-45deg);">
           <path d="M12 2C10 5 9 8 9 12v7c0 1.1.9 2 2 2h2c1.1 0 2-.9 2-2v-7c0-4-1-7-3-10z" fill="rgba(255, 100, 0, 0.15)"/>
           <line x1="9" y1="15" x2="15" y2="15" />
           <line x1="9" y1="18" x2="15" y2="18" />
@@ -407,8 +407,8 @@ export class InputController {
         const prevX = this.mouse.x;
         const prevY = this.mouse.y;
 
-        this.mouse.x = THREE.MathUtils.lerp(this.mouse.x, targetX, 0.15);
-        this.mouse.y = THREE.MathUtils.lerp(this.mouse.y, targetY, 0.15);
+        this.mouse.x = THREE.MathUtils.lerp(this.mouse.x, targetX, 0.25);
+        this.mouse.y = THREE.MathUtils.lerp(this.mouse.y, targetY, 0.25);
 
         this.mouse.movementX = this.mouse.x - prevX;
         this.mouse.movementY = this.mouse.y - prevY;

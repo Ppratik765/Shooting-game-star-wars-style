@@ -122,10 +122,10 @@ function computeElevation(worldX, worldZ, ns, hs) {
 }
 
 export class Terrain {
-  constructor(scene) {
+  constructor(scene, isMobile = false) {
     this.scene = scene;
-    this.gridSize = 700;
-    this.gridSpacing = 8;
+    this.gridSize = isMobile ? 400 : 700;
+    this.gridSpacing = isMobile ? 12 : 8;
     this.ns = 0.0016;   // slightly lower freq = wider mountains
     this.hs = 220.0;    // taller
     this._createMesh();

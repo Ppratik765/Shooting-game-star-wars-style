@@ -41,21 +41,22 @@ function createCircularGlowTexture(colorHex, coreColorHex = '#ffffff') {
 }
 
 export class GameManager {
-  constructor(scene, camera) {
+  constructor(scene, camera, isMobile = false) {
     this.scene  = scene;
     this.camera = camera;
     this.isDead = false;
     this.isPaused = false;
+    this.isMobile = isMobile;
 
     this.state = { timeSurvived: 0, kills: 0 };
 
     this.uiManager        = new UIManager();
     this.inputController  = new InputController();
     this.playerShip       = new PlayerShip(this.camera);
-    this.terrain          = new Terrain(this.scene);
-    this.particleSystem   = new ParticleSystem(this.scene);
-    this.enemyManager     = new EnemyManager(this.scene, this.particleSystem, this.playerShip);
-    this.weaponSystem     = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager);
+    this.terrain          = new Terrain(this.scene, isMobile);
+    this.particleSystem   = new ParticleSystem(this.scene, isMobile);
+    this.enemyManager     = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
+    this.weaponSystem     = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile);
 
     this.enemyManager.terrain = this.terrain;
 
@@ -123,7 +124,7 @@ export class GameManager {
   }
 
   _createStarfield() {
-    const starCount = 3000;
+    const starCount = this.isMobile ? 1200 : 3000;
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
 
