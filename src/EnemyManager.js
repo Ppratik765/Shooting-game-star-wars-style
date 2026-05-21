@@ -42,13 +42,20 @@ export class EnemyManager {
         strategy: 'chase',
         predictedTargetPos: new THREE.Vector3(),
         evasionTimer: 0,
-        evasionDir: new THREE.Vector3()
+        evasionDir: new THREE.Vector3(),
+        // Spatial flyby state machine
+        flybyState: 'approach',
+        flybyOffset: new THREE.Vector3(),
+        turnTimer: 0,
+        retreatTarget: new THREE.Vector3(),
+        turnTarget: new THREE.Vector3()
       });
     }
 
     this.spawnTimer = 0;
     this.spawnRate = 4.0;
     this.onEnemyKilled = null;
+    this.onEnemyCrashed = null;
     this.onPlayerHit = null;
 
     // Diamond death markers — persist for session
@@ -98,7 +105,7 @@ export class EnemyManager {
     bulletGeom.computeVertexNormals();
 
     const bulletMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff44,
+      color: 0xff6600,
       transparent: true,
       opacity: 0.9
     });
@@ -244,19 +251,9 @@ export class EnemyManager {
         continue; // skip normal AI
       }
 
-      // --- Dumb Orbit Targeting (keeps distance and circles player) ---
+      // --- Flyby AI State Machine (runs spatial sweeps, avoids collisions) ---
       const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
-      
-      // Calculate slow orbit target around the player at 400-480 units
-      const orbitRadius = 400 + (i % 3) * 40;
-      const angleSpeed = 0.0003 + (i % 3) * 0.0002;
-      const orbitAngle = Date.now() * angleSpeed + i * 1.5;
-
-      let targetPos = playerPos.clone().add(new THREE.Vector3(
-        Math.sin(orbitAngle) * orbitRadius,
-        (i % 2 === 0 ? 30 : -20), // slight vertical offset
-        Math.cos(orbitAngle) * orbitRadius
-      ));
+      let targetPos = new THREE.Vector3();
 
       if (enemy.formationLeader && enemy.formationLeader.active && !enemy.formationLeader.dying) {
         const leaderPos = enemy.formationLeader.mesh.position;
@@ -268,11 +265,75 @@ export class EnemyManager {
           .addScaledVector(new THREE.Vector3(0, 1, 0), enemy.formationOffset.y)
           .addScaledVector(leaderFwd, enemy.formationOffset.z);
       } else {
-        if (enemy.strategy === 'high_alt') {
-          targetPos.y = playerPos.y + 130;
-        } else if (enemy.strategy === 'trench' && this.terrain) {
-          const eH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
-          targetPos.y = eH + 22;
+        // Spatial flyby state transitions
+        if (!enemy.flybyState) {
+          enemy.flybyState = 'approach';
+        }
+
+        if (enemy.flybyState === 'approach') {
+          // Check if we passed the player or are very close and starting to move away
+          const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
+          const toPlayerDir = toPlayerVec.clone().normalize();
+          const movingAway = enemy.velocity.dot(toPlayerDir) < -10;
+
+          if (distToPlayer < 90 || (distToPlayer < 180 && movingAway)) {
+            enemy.flybyState = 'retreat';
+            // Fly straight past and way away
+            const heading = enemy.velocity.clone().normalize();
+            if (heading.lengthSq() < 0.1) {
+              enemy.mesh.getWorldDirection(heading);
+            }
+            enemy.retreatTarget.copy(enemy.mesh.position).addScaledVector(heading, 800);
+          }
+        } else if (enemy.flybyState === 'retreat') {
+          if (distToPlayer > 600) {
+            enemy.flybyState = 'turn';
+            enemy.turnTimer = 2.0 + Math.random() * 1.5;
+
+            // Wide sweep target towards the player direction but offset to circle
+            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
+            const perp = new THREE.Vector3(0, 1, 0).cross(toPlayerVec).normalize();
+            enemy.turnTarget.copy(enemy.mesh.position)
+              .addScaledVector(perp, 250)
+              .addScaledVector(toPlayerVec.normalize(), 200);
+          }
+        } else if (enemy.flybyState === 'turn') {
+          enemy.turnTimer -= deltaTime;
+          if (enemy.turnTimer <= 0) {
+            enemy.flybyState = 'approach';
+            // Compute a safe perpendicular offset of 55-85 units to avoid contact
+            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
+            const toPlayerDir = toPlayerVec.clone().normalize();
+            let perp = new THREE.Vector3(0, 1, 0).cross(toPlayerDir).normalize();
+            if (perp.lengthSq() < 0.01) {
+              perp = new THREE.Vector3(1, 0, 0).cross(toPlayerDir).normalize();
+            }
+            const angle = Math.random() * Math.PI * 2;
+            perp.applyAxisAngle(toPlayerDir, angle);
+            const offsetRadius = 55 + Math.random() * 30;
+            enemy.flybyOffset.copy(perp).multiplyScalar(offsetRadius);
+          }
+        }
+
+        // Apply Target Positions
+        if (enemy.flybyState === 'approach') {
+          if (enemy.flybyOffset.lengthSq() === 0) {
+            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
+            const toPlayerDir = toPlayerVec.clone().normalize();
+            let perp = new THREE.Vector3(0, 1, 0).cross(toPlayerDir).normalize();
+            if (perp.lengthSq() < 0.01) {
+              perp = new THREE.Vector3(1, 0, 0).cross(toPlayerDir).normalize();
+            }
+            const angle = Math.random() * Math.PI * 2;
+            perp.applyAxisAngle(toPlayerDir, angle);
+            const offsetRadius = 55 + Math.random() * 30;
+            enemy.flybyOffset.copy(perp).multiplyScalar(offsetRadius);
+          }
+          targetPos.copy(playerPos).add(enemy.flybyOffset);
+        } else if (enemy.flybyState === 'retreat') {
+          targetPos.copy(enemy.retreatTarget);
+        } else if (enemy.flybyState === 'turn') {
+          targetPos.copy(enemy.turnTarget);
         }
       }
 
@@ -302,17 +363,14 @@ export class EnemyManager {
 
 
 
-      let baseSpeed = 110 + i * 1.2;
-      if (enemy.strategy === 'interceptor') baseSpeed = 140;
-      if (enemy.strategy === 'flanker')     baseSpeed = 120;
-
+      let baseSpeed = 145 + i * 1.5; // High energy flyby speeds
       if (this.isMobile) {
-        baseSpeed *= 0.78;
+        baseSpeed *= 0.85;
       }
 
       const targetVelocity = dir.clone().multiplyScalar(baseSpeed);
       targetVelocity.addScaledVector(enemy.evasionDir, 12);
-      enemy.velocity.lerp(targetVelocity, 1.2 * deltaTime);
+      enemy.velocity.lerp(targetVelocity, 1.4 * deltaTime);
 
       enemy.mesh.position.addScaledVector(enemy.velocity, deltaTime);
       if (enemy.velocity.lengthSq() > 0.01) {
@@ -365,7 +423,7 @@ export class EnemyManager {
 
     const aimDir = new THREE.Vector3().subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
 
-    const spread = 0.12; // Stormtrooper aim: cinematic misses
+    const spread = 0.16; // Stormtrooper aim: cinematic misses (worsened slightly)
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
     aimDir.z += (Math.random() - 0.5) * spread;
@@ -399,14 +457,19 @@ export class EnemyManager {
     const playerFwd  = new THREE.Vector3();
     this.playerShip.camera.getWorldDirection(playerFwd);
 
-    const spawnAngle = Math.random() * Math.PI * 2;
-    const spawnRadius = 500 + Math.random() * 200;
-    const spawnDir = new THREE.Vector3(
-      Math.sin(spawnAngle),
-      0,
-      Math.cos(spawnAngle)
-    );
+    // Bias spawns to be in front of the player (within FOV)
+    const isForwardSpawn = Math.random() < 0.85; // 85% in front, 15% anywhere
+    let spawnDir = new THREE.Vector3();
+    if (isForwardSpawn) {
+      const playerFwdH = new THREE.Vector3(playerFwd.x, 0, playerFwd.z).normalize();
+      const offsetAngle = (Math.random() - 0.5) * (140 * Math.PI / 180); // +/- 70 degrees offset
+      spawnDir.copy(playerFwdH).applyAxisAngle(new THREE.Vector3(0, 1, 0), offsetAngle).normalize();
+    } else {
+      const spawnAngle = Math.random() * Math.PI * 2;
+      spawnDir.set(Math.sin(spawnAngle), 0, Math.cos(spawnAngle));
+    }
 
+    const spawnRadius = 500 + Math.random() * 200;
     const basePos = playerPos.clone().addScaledVector(spawnDir, spawnRadius);
     basePos.y = playerPos.y + (Math.random() - 0.5) * 100 + 50;
 
@@ -442,6 +505,10 @@ export class EnemyManager {
       enemy.evasionTimer = Math.random() * 2;
       enemy.velocity.set(0, 0, 0);
       enemy.angularVel.set(0, 0, 0);
+      
+      enemy.flybyState = 'approach';
+      enemy.flybyOffset.set(0, 0, 0);
+      enemy.turnTimer = 0;
 
       if (s === 0) {
         enemy.isLeader = true;
@@ -535,6 +602,9 @@ export class EnemyManager {
     this.particleSystem.spawnGroundExplosion(crashPos);
     this.particleSystem.spawnShockwave(crashPos, this.terrain);
 
+    // Trigger ground contact crash explosion sound
+    if (this.onEnemyCrashed) this.onEnemyCrashed(crashPos);
+
     // Place diamond death marker
     this._placeDeathMarker(crashPos);
   }
@@ -562,6 +632,9 @@ export class EnemyManager {
       e.formationLeader = null;
       e.velocity.set(0, 0, 0);
       e.angularVel.set(0, 0, 0);
+      e.flybyState = 'approach';
+      e.flybyOffset.set(0, 0, 0);
+      e.turnTimer = 0;
     }
     for (const p of this.enemyProjectiles) {
       p.active = false;

@@ -6,6 +6,7 @@ import { Terrain } from './Terrain.js';
 import { WeaponSystem } from './WeaponSystem.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { EnemyManager } from './EnemyManager.js';
+import { AudioManager } from './AudioManager.js';
 
 function createCircularGlowTexture(colorHex, coreColorHex = '#ffffff') {
   const canvas = document.createElement('canvas');
@@ -46,6 +47,7 @@ export class GameManager {
     this.camera = camera;
     this.isDead = false;
     this.isPaused = false;
+    this.isStarted = false;
     this.isMobile = isMobile;
 
     this.state = { timeSurvived: 0, kills: 0 };
@@ -56,7 +58,8 @@ export class GameManager {
     this.terrain          = new Terrain(this.scene, isMobile);
     this.particleSystem   = new ParticleSystem(this.scene, isMobile);
     this.enemyManager     = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
-    this.weaponSystem     = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile);
+    this.audioManager     = new AudioManager();
+    this.weaponSystem     = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager);
 
     this.enemyManager.terrain = this.terrain;
 
@@ -65,10 +68,15 @@ export class GameManager {
       this.uiManager.addLog('TARGET DESTROYED');
     };
 
+    this.enemyManager.onEnemyCrashed = (position) => {
+      this.audioManager.playExplosion(position);
+    };
+
     this.enemyManager.onPlayerHit = () => {
       this.uiManager.triggerDamageFlash();
       this.uiManager.addLog('INCOMING FIRE — HULL DAMAGE', 'critical');
       this.playerShip.triggerShake(1.0);
+      this.audioManager.playGrunt();
     };
 
     const retryBtn = document.getElementById('retry-button');
@@ -109,6 +117,44 @@ export class GameManager {
       });
     }
 
+    // Start Screen
+    const btnLetsPlay = document.getElementById('btn-lets-play');
+    const btnHowToPlay = document.getElementById('btn-how-to-play');
+
+    if (btnLetsPlay) {
+      btnLetsPlay.addEventListener('mouseenter', () => this.audioManager.playUIHover());
+      btnLetsPlay.addEventListener('click', () => {
+        this.audioManager.playUIClick();
+        this.isStarted = true;
+        this.uiManager.startGame();
+        this.state.timeSurvived = 0; // reset clock
+
+        // Direct fullscreen request on mobile click gesture (highly compliant & reliable)
+        if (this.isMobile) {
+          const docEl = document.documentElement;
+          const isCurrentlyFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+          if (!isCurrentlyFullscreen) {
+            const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+            if (requestFS) {
+              requestFS.call(docEl).catch(() => {
+                // Ignore failure
+              });
+            }
+          }
+        }
+
+        // Resume audio context (browser autoplay policy requires user gesture)
+        this.audioManager.resume();
+      });
+    }
+
+    if (btnHowToPlay) {
+      btnHowToPlay.addEventListener('mouseenter', () => this.audioManager.playUIHover());
+      btnHowToPlay.addEventListener('click', () => {
+        this.audioManager.playUIClick();
+      });
+    }
+
     // === Sky Group: Groups stars & suns so they move together with camera ===
     this.skyGroup = new THREE.Group();
     this.scene.add(this.skyGroup);
@@ -124,23 +170,26 @@ export class GameManager {
   }
 
   _createStarfield() {
-    const starCount = this.isMobile ? 1200 : 3000;
+    const starCount = this.isMobile ? 600 : 1600;
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
+
+    const minR = this.isMobile ? 2500 : 2900;
+    const maxR = this.isMobile ? 2800 : 3300;
 
     for (let i = 0; i < starCount; i++) {
       // Random position mostly in the upper hemisphere
       // By keeping theta roughly between 0 and PI, sin(theta) is positive (Y is positive)
       const theta = -0.15 + Math.random() * (Math.PI + 0.3);
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1700 + Math.random() * 200;
+      const r = minR + Math.random() * (maxR - minR);
 
       positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
 
-      // Brighter stars: minimum threshold of 0.6 instead of 0.3
-      const brightness = 0.6 + Math.random() * 0.4;
+      // Softer stars: brightness threshold of 0.35 to 0.8
+      const brightness = 0.35 + Math.random() * 0.45;
       const tint = Math.random();
       if (tint > 0.8) {
         // Slightly blue
@@ -165,11 +214,12 @@ export class GameManager {
     starGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const starMat = new THREE.PointsMaterial({
-      size: 3.5, // Brighter/larger star points
+      size: 2.3, // Smaller star points
       vertexColors: true,
       transparent: true,
-      opacity: 0.95,
-      sizeAttenuation: false  // constant size regardless of distance
+      opacity: 0.8, // Softer background blending
+      sizeAttenuation: false,  // constant size regardless of distance
+      fog: false
     });
 
     this.starfield = new THREE.Points(starGeom, starMat);
@@ -181,21 +231,24 @@ export class GameManager {
     const sun1Texture = createCircularGlowTexture('#ff9900', '#ffffff');
     const sun2Texture = createCircularGlowTexture('#00ccff', '#ffffff');
 
+    const skyScale = this.isMobile ? 2.1 : 2.6;
+
     // Sun 1: warm white — main light source
     const sun1Mat = new THREE.SpriteMaterial({
       map: sun1Texture,
       transparent: true,
       opacity: 1.0,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
+      fog: false
     });
     const sun1 = new THREE.Sprite(sun1Mat);
-    sun1.position.set(800, 900, -600);
-    sun1.scale.set(380, 380, 1);
+    sun1.position.set(800 * skyScale, 900 * skyScale, -600 * skyScale);
+    sun1.scale.set(380 * skyScale, 380 * skyScale, 1);
     this.skyGroup.add(sun1);
 
     // Directional light from sun1
     const sunLight1 = new THREE.DirectionalLight(0xffffff, 1.2);
-    sunLight1.position.set(800, 900, -600);
+    sunLight1.position.set(800 * skyScale, 900 * skyScale, -600 * skyScale);
     this.skyGroup.add(sunLight1);
     this.skyGroup.add(sunLight1.target);
 
@@ -204,16 +257,17 @@ export class GameManager {
       map: sun2Texture,
       transparent: true,
       opacity: 0.95,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
+      fog: false
     });
     const sun2 = new THREE.Sprite(sun2Mat);
-    sun2.position.set(-500, 700, 800);
-    sun2.scale.set(240, 240, 1);
+    sun2.position.set(-500 * skyScale, 700 * skyScale, 800 * skyScale);
+    sun2.scale.set(240 * skyScale, 240 * skyScale, 1);
     this.skyGroup.add(sun2);
 
     // Directional light from sun2
     const sunLight2 = new THREE.DirectionalLight(0xffffcc, 0.6);
-    sunLight2.position.set(-500, 700, 800);
+    sunLight2.position.set(-500 * skyScale, 700 * skyScale, 800 * skyScale);
     this.skyGroup.add(sunLight2);
     this.skyGroup.add(sunLight2.target);
 
@@ -234,6 +288,14 @@ export class GameManager {
     // Consume accumulated input — cap mouse deltas before any physics
     this.inputController.consumeMovement();
 
+    if (!this.isStarted) {
+      this.playerShip.update(deltaTime, this.inputController, this.terrain, true); // true = isIntro
+      this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
+      this.skyGroup.position.copy(this.playerShip.camera.position);
+      this.inputController.clearDeltas();
+      return;
+    }
+
     if (this.isDead) {
       this.particleSystem.update(deltaTime, this.terrain);
       return;
@@ -241,7 +303,7 @@ export class GameManager {
 
     this.state.timeSurvived += deltaTime;
 
-    this.playerShip.update(deltaTime, this.inputController, this.terrain);
+    this.playerShip.update(deltaTime, this.inputController, this.terrain, false);
     this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
 
     // Move skyGroup with camera so stars/suns remain at fixed "infinite" distance
@@ -250,6 +312,13 @@ export class GameManager {
     this.enemyManager.update(deltaTime);
     this.weaponSystem.update(deltaTime, this.inputController, currentTime, this.playerShip.velocity);
     this.particleSystem.update(deltaTime, this.terrain);
+
+    // Audio updates
+    const shipState = this.playerShip.getState();
+    this.audioManager.updateListener(this.playerShip.camera.position, this.playerShip.camera.quaternion);
+    this.audioManager.updateEngine(this.playerShip.throttle, shipState.speed);
+    this.audioManager.updateBoost(this.playerShip.isBoosting);
+    this.audioManager.updateFlyby(deltaTime, this.enemyManager.getEnemies(), this.playerShip.camera.position);
 
     this.uiManager.setCrosshairTarget(this.inputController.mouse.x, this.inputController.mouse.y);
     this.uiManager.update(
@@ -303,6 +372,8 @@ export class GameManager {
     this.particleSystem.spawnGroundExplosion(this.playerShip.camera.position);
     this.particleSystem.spawnShockwave(this.playerShip.camera.position, this.terrain);
     this.uiManager.triggerDamageFlash();
+    this.audioManager.playExplosion(this.playerShip.camera.position);
+    this.audioManager.stopAll();
     setTimeout(() => { this.uiManager.showGameOver(this.state); }, 1500);
   }
 
@@ -314,6 +385,7 @@ export class GameManager {
     this.enemyManager.reset();
     this.weaponSystem.reset();
     this.particleSystem.reset();
+    this.audioManager.reset();
     this.uiManager.reset();
     this.uiManager.addLog('CLONE ACTIVATED — SYSTEMS ONLINE', 'normal');
   }

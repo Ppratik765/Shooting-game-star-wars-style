@@ -74,9 +74,10 @@ export class PlayerShip {
     this.velocity.y -= this.dieFromHigh ? 250 : 80; // Harder initial downward jolt
   }
 
-  update(deltaTime, inputController, terrain) {
+  update(deltaTime, inputController, terrain, isIntro = false) {
     if (this.isDying) {
       // Uncontrollable plunge to the ground
+
       const speedMult = this.dieFromHigh ? 3.5 : 1.2;
       // Interpolate pitch directly towards vertical nose dive
       this.pitch = THREE.MathUtils.lerp(this.pitch, -Math.PI / 2, 3.0 * speedMult * deltaTime); 
@@ -96,6 +97,23 @@ export class PlayerShip {
     }
 
     if (this.terrainCrashed) return;
+
+    if (isIntro) {
+      // Intro Flight: straight ahead, fixed throttle, fixed altitude
+      this.pitch = THREE.MathUtils.lerp(this.pitch, 0, 2.0 * deltaTime);
+      this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
+      this.throttle = inputController.isMobile ? 125 : 140;
+      this.targetFOV = this.baseFOV;
+      
+      this._updateStamina(deltaTime);
+      this._applyPhysics(deltaTime);
+      
+      // Force altitude
+      this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, 350, 4.0 * deltaTime);
+      
+      this._updateCamera(deltaTime);
+      return;
+    }
 
     this._handleInput(deltaTime, inputController);
     this._updateStamina(deltaTime);

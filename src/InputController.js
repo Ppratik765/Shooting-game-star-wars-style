@@ -362,20 +362,19 @@ export class InputController {
     // Passive one-shot Fullscreen trigger on first mobile interaction
     const triggerFS = () => {
       if (!this.isMobile) return;
+      
+      // Clean up listeners immediately to prevent repeatedly triggering FS requests on subsequent touches if it fails
+      window.removeEventListener('touchstart', triggerFS);
+      window.removeEventListener('click', triggerFS);
+
       const docEl = document.documentElement;
       const isCurrentlyFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
       if (!isCurrentlyFullscreen) {
         const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
         if (requestFS) {
-          requestFS.call(docEl)
-            .then(() => {
-              // Successfully entered fullscreen, clean up listeners
-              window.removeEventListener('touchstart', triggerFS);
-              window.removeEventListener('click', triggerFS);
-            })
-            .catch(() => {
-              // Ignore failure (e.g. requires click gesture first)
-            });
+          requestFS.call(docEl).catch(() => {
+            // Ignore failure
+          });
         }
       }
     };

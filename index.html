@@ -14,6 +14,40 @@
 
 <body>
   <div id="app"></div>
+  
+  <div id="start-screen">
+    <div class="start-title">WIREFRAME<br>SPACE SHOOTER</div>
+    <button id="btn-lets-play" class="start-btn">LET'S PLAY</button>
+    <button id="btn-how-to-play" class="start-btn secondary">HOW TO PLAY</button>
+  </div>
+
+  <div id="how-to-play-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-title">HOW TO PLAY</div>
+      <div class="tabs">
+        <button id="tab-desktop" class="tab-btn active">DESKTOP</button>
+        <button id="tab-mobile" class="tab-btn">MOBILE</button>
+      </div>
+      <div id="content-desktop" class="tab-content active">
+        <p><strong>Mouse:</strong> Move crosshair & steer</p>
+        <p><strong>W:</strong> Throttle UP</p>
+        <p><strong>S:</strong> Throttle DOWN</p>
+        <p><strong>A / D:</strong> Yaw left / right</p>
+        <p><strong>Left Click:</strong> Fire Lasers</p>
+        <p><strong>Right Click:</strong> Target Lock</p>
+        <p><strong>Shift:</strong> Engine Boost</p>
+      </div>
+      <div id="content-mobile" class="tab-content">
+        <p><strong>Device Tilt:</strong> Steer ship (Gyroscope)</p>
+        <p><strong>Left Joystick:</strong> Aim crosshair</p>
+        <p><strong>Right Button:</strong> Fire Lasers</p>
+        <p><strong>Right Slider:</strong> Throttle control</p>
+        <p><em>Lock target removed on mobile.</em></p>
+      </div>
+      <button id="btn-close-modal" class="start-btn">BACK</button>
+    </div>
+  </div>
+
   <div id="ui-layer">
     <button id="settings-btn" aria-label="Settings">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

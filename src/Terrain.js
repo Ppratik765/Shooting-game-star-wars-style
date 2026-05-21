@@ -128,6 +128,8 @@ export class Terrain {
     this.gridSpacing = isMobile ? 12 : 8;
     this.ns = 0.0016;   // slightly lower freq = wider mountains
     this.hs = 220.0;    // taller
+    this.maxRadius = (this.gridSize * this.gridSpacing) / 2;
+    this.fadeStart = this.maxRadius - 800; // 800 unit fade window
     this._createMesh();
   }
 
@@ -152,10 +154,15 @@ export class Terrain {
         uNoiseScale:  { value: this.ns },
         uHeightScale: { value: this.hs },
         uCamX:        { value: 0 },
-        uCamZ:        { value: 0 }
+        uCamZ:        { value: 0 },
+        uActualCamX:  { value: 0 },
+        uActualCamZ:  { value: 0 },
+        uMaxRadius:   { value: this.maxRadius },
+        uFadeStart:   { value: this.fadeStart }
       },
       vertexShader: /* glsl */`
-        uniform float uNoiseScale, uHeightScale, uCamX, uCamZ;
+        uniform float uNoiseScale, uHeightScale, uCamX, uCamZ, uActualCamX, uActualCamZ;
+        uniform float uMaxRadius, uFadeStart;
 
         vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
         vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
@@ -212,7 +219,7 @@ export class Terrain {
           float canyonCut = max(0.0, 1.0 - abs(canyonNoise) * 2.5);
           float canyonDeep = pow(canyonCut, 1.8) * uHeightScale * 0.7;
 
-          float canyon2 = snoise(vec2(wwx * uNoiseScale * 0.5 + 11.2, wwz * uNoiseScale * 0.5 + 7.8));
+          float canyon2 = snoise(vec2(wwx * uNoiseScale * 0.5 + 11.2, wz * uNoiseScale * 0.5 + 7.8));
           float canyon2Cut = max(0.0, 1.0 - abs(canyon2) * 3.0);
           float canyon2Deep = pow(canyon2Cut, 2.0) * uHeightScale * 0.4;
 
@@ -236,12 +243,11 @@ export class Terrain {
 
         varying float vElevation;
         varying float vDist;
-        varying vec2  vLocalXZ;
+        varying float vRadialDist;
 
         void main(){
           float worldX = position.x + uCamX;
           float worldZ = position.z + uCamZ;
-          vLocalXZ = position.xz;
 
           float elevation = getElevation(worldX, worldZ);
           vElevation = elevation;
@@ -251,16 +257,18 @@ export class Terrain {
           gl_Position = projectionMatrix * mvPos;
 
           float dist = -mvPos.z;
-          gl_PointSize = clamp(180.0 / dist, 1.4, 3.0);
+          gl_PointSize = clamp(180.0 / dist, 1.6, 3.5);
 
           vDist = dist;
+          vRadialDist = length(vec2(worldX - uActualCamX, worldZ - uActualCamZ));
         }
       `,
       fragmentShader: /* glsl */`
         varying float vElevation;
         varying float vDist;
-        varying vec2  vLocalXZ;
+        varying float vRadialDist;
         uniform float uHeightScale;
+        uniform float uMaxRadius, uFadeStart;
 
         void main(){
           vec2 c = 2.0 * gl_PointCoord - 1.0;
@@ -283,7 +291,7 @@ export class Terrain {
           else if(t < 0.45) col = mix(hillCol,   slopeCol,  (t - 0.22) / 0.23);
           else if(t < 0.70) col = mix(slopeCol,  ridgeCol,  (t - 0.45) / 0.25);
           else if(t < 0.88) col = mix(ridgeCol,  peakCol,   (t - 0.70) / 0.18);
-          else              col = mix(peakCol,   vec3(0.70, 0.73, 0.78), (t - 0.88) / 0.12); // Subtle cool grey-white accent
+          else              col = mix(peakCol,   vec3(0.70, 0.73, 0.78), (t - 0.88) / 0.12); // Bright cool white accent
 
           float distFade = clamp(1.0 - vDist / 2800.0, 0.12, 1.0);
           col *= distFade;
@@ -292,8 +300,11 @@ export class Terrain {
           float fogFactor = smoothstep(1200.0, 2600.0, vDist);
           col = mix(col, fogColor, fogFactor);
 
-          float radialDist = length(vLocalXZ);
-          float alpha = smoothstep(2800.0, 2000.0, radialDist);
+          float alpha = smoothstep(uMaxRadius, uFadeStart, vRadialDist);
+          // Only cap alpha for very distant points to prevent overlapping peak brightness buildup
+          // Nearby terrain stays fully opaque; beyond 1800 units, max alpha ramps down to 0.55
+          float distAlphaCap = mix(1.0, 0.55, smoothstep(1800.0, 2600.0, vDist));
+          alpha = min(alpha, distAlphaCap);
           float softEdge = 1.0 - smoothstep(0.6, 1.0, r);
 
           gl_FragColor = vec4(col, alpha * softEdge);
@@ -308,10 +319,15 @@ export class Terrain {
   }
 
   update(cameraX, cameraZ) {
-    this.material.uniforms.uCamX.value = cameraX;
-    this.material.uniforms.uCamZ.value = cameraZ;
-    this.points.position.x = cameraX;
-    this.points.position.z = cameraZ;
+    const snapX = Math.floor(cameraX / this.gridSpacing) * this.gridSpacing;
+    const snapZ = Math.floor(cameraZ / this.gridSpacing) * this.gridSpacing;
+
+    this.material.uniforms.uCamX.value = snapX;
+    this.material.uniforms.uCamZ.value = snapZ;
+    this.material.uniforms.uActualCamX.value = cameraX;
+    this.material.uniforms.uActualCamZ.value = cameraZ;
+    this.points.position.x = snapX;
+    this.points.position.z = snapZ;
   }
 
   getHeightAt(worldX, worldZ) {

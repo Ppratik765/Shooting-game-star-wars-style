@@ -14,7 +14,16 @@ export class UIManager {
     this.targetLock   = document.getElementById('target-lock');
     this.radarBlips   = document.getElementById('radar-blips');
     this.boostVignette = document.getElementById('boost-vignette');
+    this.boostVignette = document.getElementById('boost-vignette');
     this.altWarning   = document.getElementById('altitude-warning');
+
+    // Start Screen
+    this.uiLayer = document.getElementById('ui-layer');
+    this.startScreen = document.getElementById('start-screen');
+    this.uiLayer.style.display = 'none';
+
+    // Hook up start screen modals
+    this._setupStartScreen();
 
     // Classic bottom bars (now hidden — replaced by arc HUD)
     this.healthFill   = document.getElementById('health-bar-fill');
@@ -45,11 +54,61 @@ export class UIManager {
     this.sonarInterval = 3.0;
     this.sonarBlips    = [];
 
+    let uiResizePending = false;
     window.addEventListener('resize', () => {
-      this.targetCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
-      this.currentCrosshairPos.copy(this.targetCrosshairPos);
-      this._resizeArcHUD();
+      if (uiResizePending) return;
+      uiResizePending = true;
+      requestAnimationFrame(() => {
+        this.targetCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
+        this.currentCrosshairPos.copy(this.targetCrosshairPos);
+        this._resizeArcHUD();
+        uiResizePending = false;
+      });
     });
+  }
+
+  _setupStartScreen() {
+    const btnHowToPlay = document.getElementById('btn-how-to-play');
+    const modal = document.getElementById('how-to-play-modal');
+    const btnClose = document.getElementById('btn-close-modal');
+
+    if (btnHowToPlay && modal) {
+      btnHowToPlay.addEventListener('click', () => {
+        modal.style.display = 'flex';
+      });
+    }
+
+    if (btnClose && modal) {
+      btnClose.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    // Tabs logic
+    const tabDesktop = document.getElementById('tab-desktop');
+    const tabMobile = document.getElementById('tab-mobile');
+    const contentDesktop = document.getElementById('content-desktop');
+    const contentMobile = document.getElementById('content-mobile');
+
+    if (tabDesktop && tabMobile) {
+      tabDesktop.addEventListener('click', () => {
+        tabDesktop.classList.add('active');
+        tabMobile.classList.remove('active');
+        contentDesktop.classList.add('active');
+        contentMobile.classList.remove('active');
+      });
+      tabMobile.addEventListener('click', () => {
+        tabMobile.classList.add('active');
+        tabDesktop.classList.remove('active');
+        contentMobile.classList.add('active');
+        contentDesktop.classList.remove('active');
+      });
+    }
+  }
+
+  startGame() {
+    if (this.startScreen) this.startScreen.style.display = 'none';
+    if (this.uiLayer) this.uiLayer.style.display = 'block';
   }
 
   _initArcHUD() {

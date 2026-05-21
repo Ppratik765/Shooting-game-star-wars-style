@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 
 export class WeaponSystem {
-  constructor(scene, camera, enemyManager, uiManager, isMobile = false) {
+  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null) {
     this.scene = scene;
     this.camera = camera;
     this.enemyManager = enemyManager;
     this.uiManager = uiManager;
     this.isMobile = isMobile;
+    this.audioManager = audioManager;
 
     // Charge system
     this.maxCharge = 70;
@@ -28,7 +29,7 @@ export class WeaponSystem {
     // Laser bolt geometry: thin retro-futuristic CRT laser
     const segments = isMobile ? 5 : 8;
     const boltLength = 160;
-    const boltRadius = 0.10;
+    const boltRadius = isMobile ? 0.18 : 0.10;
     const geom = new THREE.CylinderGeometry(boltRadius, boltRadius, boltLength, segments, isMobile ? 1 : 6);
     geom.rotateX(-Math.PI / 2);
     this.boltGeom = geom;
@@ -110,8 +111,16 @@ export class WeaponSystem {
         this.scene.add(glow);
       }
 
+      // PointLight for laser illumination (desktop only)
+      let light = null;
+      if (!isMobile) {
+        light = new THREE.PointLight(0xff9900, 3, 120, 2);
+        light.visible = false;
+        this.scene.add(light);
+      }
+
       this.pool.push({
-        mesh, coreMesh, glow,
+        mesh, coreMesh, glow, light,
         active: false,
         velocity: new THREE.Vector3(),
         direction: new THREE.Vector3(),
@@ -186,6 +195,9 @@ export class WeaponSystem {
         p.glow.position.copy(p.mesh.position);
         p.glow.quaternion.copy(p.mesh.quaternion);
       }
+      if (p.light) {
+        p.light.position.copy(p.mesh.position);
+      }
 
       this._checkCollisions(p);
     }
@@ -197,6 +209,9 @@ export class WeaponSystem {
       if (!this.pool[i].active) toSpawn.push(this.pool[i]);
     }
     if (toSpawn.length < 2) return;
+
+    // Play laser sound effect
+    if (this.audioManager) this.audioManager.playLaser();
 
     let aimDir;
     if (this.lockedEnemy && this.lockedEnemy.active) {
@@ -251,6 +266,10 @@ export class WeaponSystem {
       p.glow.quaternion.copy(p.mesh.quaternion);
       p.glow.visible = true;
     }
+    if (p.light) {
+      p.light.position.copy(origin);
+      p.light.visible = true;
+    }
 
     p.velocity.copy(velocity);
     p.direction.copy(direction);
@@ -263,6 +282,7 @@ export class WeaponSystem {
     p.mesh.visible = false;
     p.coreMesh.visible = false;
     if (p.glow) p.glow.visible = false;
+    if (p.light) p.light.visible = false;
     p.trackingTarget = null;
   }
 
