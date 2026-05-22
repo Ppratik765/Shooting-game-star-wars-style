@@ -5,8 +5,8 @@ export class PlayerShip {
     this.camera = camera;
 
     this.pitch = -0.05;
-    this.yaw   = 0;
-    this.roll  = 0;
+    this.yaw = 0;
+    this.roll = 0;
 
     this.velocity = new THREE.Vector3(0, 0, -140);
     const rx = (Math.random() - 0.5) * 10000;
@@ -17,58 +17,58 @@ export class PlayerShip {
     this.minThrottle = 60;
     this.maxThrottle = 260;
     // Base throttle — always applied on mobile so the game is always in motion
-    this.throttle    = 140;
+    this.throttle = 140;
 
-    this.gravity   = -12;
+    this.gravity = -12;
     this.turnSpeed = 1.5;
 
     // Stamina / boost
-    this.maxStamina       = 100;
-    this.stamina          = this.maxStamina;
+    this.maxStamina = 100;
+    this.stamina = this.maxStamina;
     this.staminaDrainRate = 30;
     this.staminaRegenRate = 15;
-    this.isBoosting       = false;
-    this.staminaDepleted  = false;
+    this.isBoosting = false;
+    this.staminaDepleted = false;
 
     // FOV
-    this.baseFOV   = 90;
-    this.boostFOV  = 120;
+    this.baseFOV = 90;
+    this.boostFOV = 120;
     this.targetFOV = this.baseFOV;
 
     // HP
     this.maxHp = 100;
-    this.hp    = this.maxHp;
+    this.hp = this.maxHp;
 
     // Stall
     this.stallPitchThreshold = 0.8;
-    this.stallTimeRequired   = 1.5;
-    this.stallTimer          = 0;
-    this.isStalled           = false;
-    this.stallRecoveryPitch  = -0.3;
+    this.stallTimeRequired = 1.5;
+    this.stallTimer = 0;
+    this.isStalled = false;
+    this.stallRecoveryPitch = -0.3;
 
     // Death state
-    this.isDying    = false;
+    this.isDying = false;
     this.dieFromHigh = false;
 
     // Terrain
-    this.terrainWarning  = false;
-    this.terrainCrashed  = false;
-    this.altitude        = 0;
+    this.terrainWarning = false;
+    this.terrainCrashed = false;
+    this.altitude = 0;
 
     // Camera shake
-    this.shakeTimer     = 0;
-    this.shakeDuration  = 0.22;
+    this.shakeTimer = 0;
+    this.shakeDuration = 0.22;
     this.shakeIntensity = 0.0;
   }
 
   triggerShake(intensity = 1.0) {
-    this.shakeTimer     = this.shakeDuration;
+    this.shakeTimer = this.shakeDuration;
     this.shakeIntensity = intensity;
   }
 
   die() {
     if (this.isDying) return;
-    this.isDying     = true;
+    this.isDying = true;
     this.dieFromHigh = this.altitude > 800;
     this.velocity.y -= this.dieFromHigh ? 250 : 80;
   }
@@ -77,7 +77,7 @@ export class PlayerShip {
     if (this.isDying) {
       const speedMult = this.dieFromHigh ? 3.5 : 1.2;
       this.pitch = THREE.MathUtils.lerp(this.pitch, -Math.PI / 2, 3.0 * speedMult * deltaTime);
-      this.roll  += 6.0 * speedMult * deltaTime;
+      this.roll += 6.0 * speedMult * deltaTime;
       this.velocity.y -= 800 * speedMult * deltaTime;
 
       const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
@@ -95,8 +95,8 @@ export class PlayerShip {
     if (this.terrainCrashed) return;
 
     if (isIntro) {
-      this.pitch    = THREE.MathUtils.lerp(this.pitch, 0, 2.0 * deltaTime);
-      this.roll     = THREE.MathUtils.lerp(this.roll,  0, 2.0 * deltaTime);
+      this.pitch = THREE.MathUtils.lerp(this.pitch, 0, 2.0 * deltaTime);
+      this.roll = THREE.MathUtils.lerp(this.roll, 0, 2.0 * deltaTime);
       // Always keep moving during intro
       this.throttle = inputController.isMobile ? 125 : 140;
       this.targetFOV = this.baseFOV;
@@ -124,8 +124,8 @@ export class PlayerShip {
       // the ship flies perfectly straight — it does NOT stall or stop.
 
       const gyroPitchSpeed = 1.35;
-      const gyroYawSpeed   = 1.25;
-      const gyroRollSpeed  = 3.5;
+      const gyroYawSpeed = 1.25;
+      const gyroRollSpeed = 3.5;
 
       // Pitch: gyro tilt or keyboard (if somehow connected)
       const pitchInput = input.gyroPitchAmt || 0;
@@ -147,11 +147,11 @@ export class PlayerShip {
       this.throttle = 125; // base — always applied
       if (input.isBoosting() && !this.staminaDepleted) {
         this.isBoosting = true;
-        this.targetFOV  = this.baseFOV + 20;
-        this.throttle   = 310;
+        this.targetFOV = this.baseFOV + 20;
+        this.throttle = 310;
       } else {
         this.isBoosting = false;
-        this.targetFOV  = this.baseFOV;
+        this.targetFOV = this.baseFOV;
       }
 
     } else {
@@ -159,14 +159,14 @@ export class PlayerShip {
       const mouseSensitivity = 0.0028;
 
       this.pitch -= input.mouse.movementY * mouseSensitivity;
-      if (input.isForward())  this.pitch += 1.2 * deltaTime;
+      if (input.isForward()) this.pitch += 1.2 * deltaTime;
       if (input.isBackward()) this.pitch -= 1.2 * deltaTime;
 
       this.yaw -= input.mouse.movementX * mouseSensitivity;
 
       const rollSpeed = 2.5;
       if (input.isLeft()) {
-        this.roll = THREE.MathUtils.lerp(this.roll,  1.0, rollSpeed * deltaTime);
+        this.roll = THREE.MathUtils.lerp(this.roll, 1.0, rollSpeed * deltaTime);
         this.yaw += 0.8 * deltaTime;
       } else if (input.isRight()) {
         this.roll = THREE.MathUtils.lerp(this.roll, -1.0, rollSpeed * deltaTime);
@@ -178,11 +178,11 @@ export class PlayerShip {
       this.throttle = 140;
       if (input.isBoosting() && !this.staminaDepleted) {
         this.isBoosting = true;
-        this.targetFOV  = this.baseFOV + 20;
-        this.throttle   = 360;
+        this.targetFOV = this.baseFOV + 20;
+        this.throttle = 360;
       } else {
         this.isBoosting = false;
-        this.targetFOV  = this.baseFOV;
+        this.targetFOV = this.baseFOV;
       }
     }
 
@@ -203,7 +203,7 @@ export class PlayerShip {
   }
 
   _applyPhysics(deltaTime) {
-    const euler   = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
+    const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
     const forward = new THREE.Vector3(0, 0, -1).applyEuler(euler);
     const targetVelocity = forward.clone().multiplyScalar(this.throttle);
     this.velocity.lerp(targetVelocity, 6.0 * deltaTime);
@@ -215,9 +215,9 @@ export class PlayerShip {
     if (this.isBoosting) {
       this.stamina -= this.staminaDrainRate * deltaTime;
       if (this.stamina <= 0) {
-        this.stamina         = 0;
+        this.stamina = 0;
         this.staminaDepleted = true;
-        this.isBoosting      = false;
+        this.isBoosting = false;
       }
     } else {
       this.stamina += this.staminaRegenRate * deltaTime;
@@ -238,7 +238,7 @@ export class PlayerShip {
   _updateShake(deltaTime) {
     if (this.shakeTimer > 0) {
       this.shakeTimer -= deltaTime;
-      const progress  = this.shakeTimer / this.shakeDuration;
+      const progress = this.shakeTimer / this.shakeDuration;
       const amplitude = this.shakeIntensity * progress * 0.04;
       const shakeEuler = new THREE.Euler(
         (Math.random() - 0.5) * amplitude,
@@ -252,10 +252,10 @@ export class PlayerShip {
 
   _checkTerrain(terrain, deltaTime) {
     if (!terrain) return;
-    const terrainHeight  = terrain.getHeightAt(this.camera.position.x, this.camera.position.z);
-    this.altitude        = this.camera.position.y - terrainHeight;
-    this.terrainWarning  = this.altitude < 40;
-    this.isAboveMaxAlt   = this.camera.position.y > 1500;
+    const terrainHeight = terrain.getHeightAt(this.camera.position.x, this.camera.position.z);
+    this.altitude = this.camera.position.y - terrainHeight;
+    this.terrainWarning = this.altitude < 60;
+    this.isAboveMaxAlt = this.camera.position.y > 1500;
     if (this.isAboveMaxAlt) this.hp -= 5 * deltaTime;
     if (this.altitude < 2) this.terrainCrashed = true;
   }
@@ -266,20 +266,20 @@ export class PlayerShip {
     this.camera.position.set(rx, 480, rz);
     this.pitch = 0; this.yaw = 0; this.roll = 0;
     this.velocity.set(0, 0, -140); // start with forward momentum on reset too
-    this.throttle        = 140;
-    this.stamina         = this.maxStamina;
+    this.throttle = 140;
+    this.stamina = this.maxStamina;
     this.staminaDepleted = false;
-    this.isBoosting      = false;
-    this.isStalled       = false;
-    this.isDying         = false;
-    this.dieFromHigh     = false;
-    this.stallTimer      = 0;
-    this.terrainWarning  = false;
-    this.terrainCrashed  = false;
-    this.hp              = this.maxHp;
-    this.targetFOV       = this.baseFOV;
-    this.altitude        = 200;
-    this.shakeTimer      = 0;
+    this.isBoosting = false;
+    this.isStalled = false;
+    this.isDying = false;
+    this.dieFromHigh = false;
+    this.stallTimer = 0;
+    this.terrainWarning = false;
+    this.terrainCrashed = false;
+    this.hp = this.maxHp;
+    this.targetFOV = this.baseFOV;
+    this.altitude = 200;
+    this.shakeTimer = 0;
   }
 
   getState() {

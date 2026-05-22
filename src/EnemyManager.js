@@ -215,8 +215,8 @@ export class EnemyManager {
       this.spawnTimer = 0;
     }
 
-    const playerPos  = this.playerShip.camera.position;
-    const playerVel  = this.playerShip.velocity;
+    const playerPos = this.playerShip.camera.position;
+    const playerVel = this.playerShip.velocity;
     const PREDICT_TIME = 2.5;
 
     for (let i = 0; i < this.maxEnemies; i++) {
@@ -271,22 +271,37 @@ export class EnemyManager {
         }
 
         if (enemy.flybyState === 'approach') {
-          // Check if we passed the player or are very close and starting to move away
+          // Check if we passed the player, are very close and moving away, or got behind the player
           const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
           const toPlayerDir = toPlayerVec.clone().normalize();
           const movingAway = enemy.velocity.dot(toPlayerDir) < -10;
 
-          if (distToPlayer < 90 || (distToPlayer < 180 && movingAway)) {
+          const playerFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
+          const toEnemyDir = enemy.mesh.position.clone().sub(playerPos).normalize();
+          const isBehindPlayer = toEnemyDir.dot(playerFwd) < -0.2; // Negative dot product means behind
+
+          if (distToPlayer < 90 || (distToPlayer < 180 && movingAway) || (isBehindPlayer && distToPlayer < 800)) {
             enemy.flybyState = 'retreat';
-            // Fly straight past and way away
-            const heading = enemy.velocity.clone().normalize();
-            if (heading.lengthSq() < 0.1) {
-              enemy.mesh.getWorldDirection(heading);
+            // Retreat target: If behind player, do a 3D repositioning maneuver far ahead of player to re-engage
+            if (isBehindPlayer) {
+              const side = Math.random() > 0.5 ? 1 : -1;
+              const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(this.playerShip.camera.quaternion);
+              const upVec = new THREE.Vector3(0, 1, 0).applyQuaternion(this.playerShip.camera.quaternion);
+              enemy.retreatTarget.copy(playerPos)
+                .addScaledVector(playerFwd, 1500 + Math.random() * 500)
+                .addScaledVector(rightVec, (500 + Math.random() * 300) * side)
+                .addScaledVector(upVec, 300 + Math.random() * 400);
+            } else {
+              // Standard flyby retreat
+              const heading = enemy.velocity.clone().normalize();
+              if (heading.lengthSq() < 0.1) {
+                enemy.mesh.getWorldDirection(heading);
+              }
+              enemy.retreatTarget.copy(enemy.mesh.position).addScaledVector(heading, 900);
             }
-            enemy.retreatTarget.copy(enemy.mesh.position).addScaledVector(heading, 800);
           }
         } else if (enemy.flybyState === 'retreat') {
-          if (distToPlayer > 600) {
+          if (distToPlayer > 950 || enemy.mesh.position.distanceTo(enemy.retreatTarget) < 250) {
             enemy.flybyState = 'turn';
             enemy.turnTimer = 2.0 + Math.random() * 1.5;
 
@@ -423,7 +438,7 @@ export class EnemyManager {
 
     const aimDir = new THREE.Vector3().subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
 
-    const spread = 0.16; // Stormtrooper aim: cinematic misses (worsened slightly)
+    const spread = 0.22; // Stormtrooper aim: worsened significantly to increase survivability and game length
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
     aimDir.z += (Math.random() - 0.5) * spread;
@@ -453,8 +468,8 @@ export class EnemyManager {
   }
 
   _spawnFormation() {
-    const playerPos  = this.playerShip.camera.position;
-    const playerFwd  = new THREE.Vector3();
+    const playerPos = this.playerShip.camera.position;
+    const playerFwd = new THREE.Vector3();
     this.playerShip.camera.getWorldDirection(playerFwd);
 
     // Bias spawns to be in front of the player (within FOV)
@@ -505,7 +520,7 @@ export class EnemyManager {
       enemy.evasionTimer = Math.random() * 2;
       enemy.velocity.set(0, 0, 0);
       enemy.angularVel.set(0, 0, 0);
-      
+
       enemy.flybyState = 'approach';
       enemy.flybyOffset.set(0, 0, 0);
       enemy.turnTimer = 0;
