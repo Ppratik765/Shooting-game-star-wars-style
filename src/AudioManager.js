@@ -18,6 +18,7 @@ import flybySrc from './assets/Enemy_flyby.m4a?url';
 import hoverSrc from './assets/hover.wav?url';
 import clickSrc from './assets/click.wav?url';
 import gruntSrc from './assets/Grunt.m4a?url';
+import warningSrc from './assets/Warning.m4a?url';
 
 export class AudioManager {
   constructor() {
@@ -34,7 +35,8 @@ export class AudioManager {
       flyby: null,
       hover: null,
       click: null,
-      grunt: null
+      grunt: null,
+      warning: null
     };
 
     // Source nodes / state
@@ -45,6 +47,10 @@ export class AudioManager {
     this.boostSource = null;
     this.boostGain = null;
     this.boostPlaying = false;
+
+    this.warningSource = null;
+    this.warningGain = null;
+    this.warningPlaying = false;
 
     // Pools
     this.laserPool = [];
@@ -71,7 +77,8 @@ export class AudioManager {
       { key: 'boost', src: boostSrc },
       { key: 'explosion', src: explosionSrc },
       { key: 'flyby', src: flybySrc },
-      { key: 'grunt', src: gruntSrc }
+      { key: 'grunt', src: gruntSrc },
+      { key: 'warning', src: warningSrc }
     ];
 
     try {
@@ -89,6 +96,11 @@ export class AudioManager {
       this.boostGain = this.ctx.createGain();
       this.boostGain.gain.value = 0.0;
       this.boostGain.connect(this.masterGain);
+
+      // Set up warning gain node
+      this.warningGain = this.ctx.createGain();
+      this.warningGain.gain.value = 0.0;
+      this.warningGain.connect(this.masterGain);
 
       this.preloadPromise = this._preload();
     } catch (err) {
@@ -155,6 +167,10 @@ export class AudioManager {
         this.boostGain = this.ctx.createGain();
         this.boostGain.gain.value = 0.0;
         this.boostGain.connect(this.masterGain);
+
+        this.warningGain = this.ctx.createGain();
+        this.warningGain.gain.value = 0.0;
+        this.warningGain.connect(this.masterGain);
 
         this.preloadPromise = this._preload();
       } catch (err) {
@@ -299,6 +315,44 @@ export class AudioManager {
     if (this.boostGain) this.boostGain.gain.value = 0;
   }
 
+  // ─── Warning ───────────────────────────────────────────────────────
+
+  /**
+   * Call every frame with current warning state.
+   * Loops warning sound while active.
+   */
+  updateWarning(isActive) {
+    if (!this.ready || !this.buffers.warning) return;
+
+    if (isActive && !this.warningPlaying) {
+      this.warningSource = this.ctx.createBufferSource();
+      this.warningSource.buffer = this.buffers.warning;
+      this.warningSource.loop = true;
+      this.warningSource.connect(this.warningGain);
+      this.warningGain.gain.value = 0.0;
+      this.warningSource.start(0);
+      this.warningPlaying = true;
+    }
+
+    if (this.warningPlaying) {
+      const targetVol = isActive ? 0.8 : 0.0;
+      this.warningGain.gain.value += (targetVol - this.warningGain.gain.value) * 0.12;
+
+      if (!isActive && this.warningGain.gain.value < 0.01) {
+        this._stopWarning();
+      }
+    }
+  }
+
+  _stopWarning() {
+    if (this.warningSource) {
+      try { this.warningSource.stop(); } catch (_) {}
+      this.warningSource = null;
+    }
+    this.warningPlaying = false;
+    if (this.warningGain) this.warningGain.gain.value = 0;
+  }
+
   // ─── Explosion ─────────────────────────────────────────────────────
 
   playExplosion(position) {
@@ -429,6 +483,7 @@ export class AudioManager {
 
   reset() {
     this._stopBoost();
+    this._stopWarning();
     // Stop all active flybys
     for (const f of this.activeFlybys) {
       try { f.source.stop(); } catch (_) { }
@@ -451,6 +506,7 @@ export class AudioManager {
   stopAll() {
     this._stopEngine();
     this._stopBoost();
+    this._stopWarning();
     for (const f of this.activeFlybys) {
       try { f.source.stop(); } catch (_) {}
     }
@@ -512,6 +568,7 @@ export class AudioManager {
       try { this.engineSource.stop(); } catch (_) { /* */ }
     }
     this._stopBoost();
+    this._stopWarning();
     if (this.ctx) {
       this.ctx.close();
     }

@@ -318,6 +318,7 @@ export class GameManager {
     this.audioManager.updateListener(this.playerShip.camera.position, this.playerShip.camera.quaternion);
     this.audioManager.updateEngine(this.playerShip.throttle, shipState.speed);
     this.audioManager.updateBoost(this.playerShip.isBoosting);
+    this.audioManager.updateWarning(shipState.terrainWarning || shipState.isStalled);
     this.audioManager.updateFlyby(deltaTime, this.enemyManager.getEnemies(), this.playerShip.camera.position);
 
     this.uiManager.setCrosshairTarget(this.inputController.mouse.x, this.inputController.mouse.y);
