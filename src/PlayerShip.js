@@ -28,6 +28,7 @@ export class PlayerShip {
     this.staminaDrainRate = 30;
     this.staminaRegenRate = 15;
     this.isBoosting = false;
+    this.wasBoosting = false;
     this.staminaDepleted = false;
 
     // FOV
@@ -45,6 +46,8 @@ export class PlayerShip {
     this.stallTimer = 0;
     this.isStalled = false;
     this.stallRecoveryPitch = -0.3;
+    this.stallRecoveryProgress = 0;
+    this.prevControlPressed = false;
 
     // Death state
     this.isDying = false;
@@ -109,7 +112,7 @@ export class PlayerShip {
 
     this._handleInput(deltaTime, inputController);
     this._updateStamina(deltaTime);
-    this._updateStall(deltaTime);
+    this._updateStall(deltaTime, inputController);
     this._applyPhysics(deltaTime);
     this._updateCamera(deltaTime);
     this._updateShake(deltaTime);
@@ -146,6 +149,9 @@ export class PlayerShip {
       // Boost doubles it. Nothing can set throttle to 0.
       this.throttle = 125; // base — always applied
       if (input.isBoosting() && !this.staminaDepleted) {
+        if (!this.isBoosting && !this.wasBoosting) {
+          this.triggerShake(3.0);
+        }
         this.isBoosting = true;
         this.targetFOV = this.baseFOV + 20;
         this.throttle = 310;
@@ -177,6 +183,9 @@ export class PlayerShip {
 
       this.throttle = 140;
       if (input.isBoosting() && !this.staminaDepleted) {
+        if (!this.isBoosting && !this.wasBoosting) {
+          this.triggerShake(3.0);
+        }
         this.isBoosting = true;
         this.targetFOV = this.baseFOV + 20;
         this.throttle = 360;
@@ -185,20 +194,48 @@ export class PlayerShip {
         this.targetFOV = this.baseFOV;
       }
     }
+    this.wasBoosting = input.isBoosting() && !this.staminaDepleted;
 
     this.pitch = THREE.MathUtils.clamp(this.pitch, -1.4, 1.4);
   }
 
-  _updateStall(deltaTime) {
+  _updateStall(deltaTime, input) {
     if (this.pitch > this.stallPitchThreshold) {
       this.stallTimer += deltaTime;
-      if (this.stallTimer >= this.stallTimeRequired) this.isStalled = true;
+      if (this.stallTimer >= this.stallTimeRequired) {
+        if (!this.isStalled) {
+          this.isStalled = true;
+          this.stallRecoveryProgress = 0;
+        }
+      }
     } else {
       this.stallTimer = Math.max(0, this.stallTimer - deltaTime * 2);
-      if (this.pitch < 0.3) this.isStalled = false;
+      if (input && input.isMobile) {
+        if (this.pitch < 0.3) this.isStalled = false;
+      }
     }
+
     if (this.isStalled) {
-      this.pitch = THREE.MathUtils.lerp(this.pitch, this.stallRecoveryPitch, 1.5 * deltaTime);
+      if (input && input.isMobile) {
+        this.pitch = THREE.MathUtils.lerp(this.pitch, this.stallRecoveryPitch, 1.5 * deltaTime);
+      } else if (input) {
+        if (input.keys.Control && !this.prevControlPressed) {
+          this.stallRecoveryProgress += 15;
+          this.triggerShake(0.5); // Add camera kick/shake for tactile feel
+        }
+        this.prevControlPressed = !!input.keys.Control;
+        
+        // Steady decay of progress over time
+        this.stallRecoveryProgress = Math.max(0, this.stallRecoveryProgress - 15 * deltaTime);
+
+        if (this.stallRecoveryProgress >= 100) {
+          this.isStalled = false;
+          this.stallRecoveryProgress = 0;
+          this.pitch = this.stallRecoveryPitch;
+        }
+      }
+    } else {
+      this.prevControlPressed = false;
     }
   }
 
@@ -270,7 +307,10 @@ export class PlayerShip {
     this.stamina = this.maxStamina;
     this.staminaDepleted = false;
     this.isBoosting = false;
+    this.wasBoosting = false;
     this.isStalled = false;
+    this.stallRecoveryProgress = 0;
+    this.prevControlPressed = false;
     this.isDying = false;
     this.dieFromHigh = false;
     this.stallTimer = 0;
@@ -290,6 +330,7 @@ export class PlayerShip {
       speed: this.velocity.length(),
       hp: this.hp, maxHp: this.maxHp,
       isStalled: this.isStalled,
+      stallRecoveryProgress: this.stallRecoveryProgress,
       terrainWarning: this.terrainWarning, terrainCrashed: this.terrainCrashed,
       altitude: this.altitude, isAboveMaxAlt: this.isAboveMaxAlt
     };

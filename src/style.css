@@ -465,3 +465,87 @@ html, body {
   .modal-title { font-size: 32px; }
   .tab-content { font-size: 18px; }
 }
+
+/* === Chromatic Aberration on Damage === */
+.chroma-active {
+  animation: chroma-flash-anim 0.4s ease-out forwards;
+}
+@keyframes chroma-flash-anim {
+  0% { filter: url(#chroma-damage); }
+  50% { filter: url(#chroma-damage); }
+  100% { filter: none; }
+}
+
+/* === Weather Overlay (Solar Flare) === */
+#solar-flare-overlay {
+  position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: #ffffff; opacity: 0; pointer-events: none; z-index: 120;
+  transition: opacity 0.5s ease-out;
+}
+#solar-flare-overlay.active {
+  opacity: 1; transition: none;
+}
+
+/* === Radar Jamming (Static Shake) === */
+#radar-container.jammed {
+  animation: radar-shake-anim 0.15s infinite alternate;
+  border-color: rgba(255, 68, 68, 0.7);
+  box-shadow: 0 0 15px rgba(255,68,68,0.3);
+}
+@keyframes radar-shake-anim {
+  0% { transform: translate(1px, 1px); }
+  100% { transform: translate(-1px, -2px); }
+}
+
+/* === Kill Streak Banner === */
+#killstreak-banner {
+  position: absolute; top: 195px; left: 50%; transform: translateX(-50%);
+  font-size: 46px; font-weight: 900; letter-spacing: 6px; text-align: center;
+  pointer-events: none; opacity: 0; z-index: 100;
+  text-shadow: 0 0 15px currentColor;
+  will-change: transform, opacity;
+}
+#killstreak-banner.active {
+  animation: streak-flash-anim 1.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+@keyframes streak-flash-anim {
+  0% { opacity: 0; transform: translate(-50%, -10px) scale(0.6); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.15); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1.0); }
+  80% { opacity: 1; transform: translate(-50%, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, 15px) scale(1.1); }
+}
+
+/* === Shareable score card === */
+.score-card {
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  background: rgba(0, 10, 5, 0.75);
+  padding: 20px 30px;
+  border-radius: 6px;
+  box-shadow: 0 0 25px rgba(0, 255, 170, 0.15), inset 0 0 15px rgba(0, 255, 170, 0.05);
+  max-width: 440px; margin: 15px auto;
+  text-align: center;
+}
+.score-main {
+  font-size: 32px; font-weight: bold; color: #00ffaa;
+  text-shadow: 0 0 12px #00ffaa; letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.score-pb {
+  font-size: 19px; color: rgba(255, 183, 0, 0.65);
+  text-shadow: 0 0 5px rgba(255, 183, 0, 0.3);
+  letter-spacing: 1px;
+}
+#new-pb-tag {
+  color: #00ffaa; text-shadow: 0 0 12px #00ffaa;
+  font-weight: bold; font-size: 20px;
+  margin-top: 10px; letter-spacing: 3px;
+  animation: blink-warn 0.4s infinite alternate;
+}
+
+/* === Comms Chatter Dim Style === */
+.log-entry.intercept {
+  color: rgba(255, 75, 75, 0.68) !important;
+  text-shadow: 0 0 4px rgba(255, 75, 75, 0.35) !important;
+  font-style: italic;
+}

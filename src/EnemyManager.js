@@ -57,6 +57,7 @@ export class EnemyManager {
     this.onEnemyKilled = null;
     this.onEnemyCrashed = null;
     this.onPlayerHit = null;
+    this.onEnemyRetreat = null;
 
     // Diamond death markers — persist for session
     const canvas = document.createElement('canvas');
@@ -282,6 +283,7 @@ export class EnemyManager {
 
           if (distToPlayer < 90 || (distToPlayer < 180 && movingAway) || (isBehindPlayer && distToPlayer < 800)) {
             enemy.flybyState = 'retreat';
+            if (this.onEnemyRetreat) this.onEnemyRetreat();
             // Retreat target: If behind player, do a 3D repositioning maneuver far ahead of player to re-engage
             if (isBehindPlayer) {
               const side = Math.random() > 0.5 ? 1 : -1;

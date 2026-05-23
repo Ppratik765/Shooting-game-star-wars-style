@@ -3,7 +3,7 @@ export class InputController {
     this.keys = {
       w: false, a: false, s: false, d: false,
       ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false,
-      Shift: false, ' ': false
+      Shift: false, ' ': false, Control: false
     };
 
     this.mouse = {
@@ -25,18 +25,18 @@ export class InputController {
     this.isMobile = this._detectMobile();
     this.gyro = { beta: 0, gamma: 0, alpha: 0 };
     this.gyroCalibrated = false;
-    this.gyroBaseBeta  = 0;
+    this.gyroBaseBeta = 0;
     this.gyroBaseGamma = 0;
 
     // Analog gyro outputs — always initialized to 0, updated by gyro events
     this.gyroPitchAmt = 0;
-    this.gyroRollAmt  = 0;
+    this.gyroRollAmt = 0;
 
     // Discrete gyro direction flags — always initialized to false
-    this.mobileForward  = false;
+    this.mobileForward = false;
     this.mobileBackward = false;
-    this.mobileLeft     = false;
-    this.mobileRight    = false;
+    this.mobileLeft = false;
+    this.mobileRight = false;
 
     // Virtual joystick state
     this.joystick = {
@@ -113,10 +113,10 @@ export class InputController {
       const centerY = rect.top + rect.height / 2;
       for (const t of e.changedTouches) {
         if (!this.joystick.active) {
-          this.joystick.active  = true;
+          this.joystick.active = true;
           this.joystick.touchId = t.identifier;
-          this.joystick.startX  = centerX;
-          this.joystick.startY  = centerY;
+          this.joystick.startX = centerX;
+          this.joystick.startY = centerY;
           this._updateJoystickPos(t.clientX, t.clientY, rect.width / 2);
         }
       }
@@ -145,19 +145,19 @@ export class InputController {
       }
     };
 
-    joystick.addEventListener('touchend',   resetJoystick, { passive: false });
+    joystick.addEventListener('touchend', resetJoystick, { passive: false });
     joystick.addEventListener('touchcancel', resetJoystick, { passive: false });
 
     // Shoot button
     const shootBtn = document.getElementById('mobile-shoot-btn');
-    shootBtn.addEventListener('touchstart',  (e) => { e.preventDefault(); this.mobileShoot = true;  }, { passive: false });
-    shootBtn.addEventListener('touchend',    (e) => { e.preventDefault(); this.mobileShoot = false; }, { passive: false });
+    shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.mobileShoot = true; }, { passive: false });
+    shootBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.mobileShoot = false; }, { passive: false });
     shootBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); this.mobileShoot = false; }, { passive: false });
 
     // Boost button
     const boostBtn = document.getElementById('mobile-boost-btn');
-    boostBtn.addEventListener('touchstart',  (e) => { e.preventDefault(); this.mobileBoost = true;  }, { passive: false });
-    boostBtn.addEventListener('touchend',    (e) => { e.preventDefault(); this.mobileBoost = false; }, { passive: false });
+    boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.mobileBoost = true; }, { passive: false });
+    boostBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.mobileBoost = false; }, { passive: false });
     boostBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); this.mobileBoost = false; }, { passive: false });
   }
 
@@ -183,10 +183,10 @@ export class InputController {
   }
 
   _resetJoystickState() {
-    this.joystick.active  = false;
+    this.joystick.active = false;
     this.joystick.touchId = null;
-    this.joystick.normX   = 0;
-    this.joystick.normY   = 0;
+    this.joystick.normX = 0;
+    this.joystick.normY = 0;
     const knob = document.getElementById('mobile-joystick-knob');
     if (knob) {
       knob.style.transform = 'translate(-50%, -50%) translate(0px, 0px)';
@@ -195,7 +195,7 @@ export class InputController {
 
   _initGyro() {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
       // iOS 13+ permission banner
       const banner = document.createElement('div');
       banner.style.cssText = `
@@ -225,48 +225,48 @@ export class InputController {
     if (e.beta === null || e.gamma === null) return;
 
     if (!this.gyroCalibrated) {
-      this.gyroBaseBeta   = e.beta;
-      this.gyroBaseGamma  = e.gamma;
+      this.gyroBaseBeta = e.beta;
+      this.gyroBaseGamma = e.gamma;
       this.gyroCalibrated = true;
     }
 
-    this.gyro.beta  = e.beta  || 0;
+    this.gyro.beta = e.beta || 0;
     this.gyro.gamma = e.gamma || 0;
     this.gyro.alpha = e.alpha || 0;
 
-    let diffBeta  = e.beta  - this.gyroBaseBeta;
+    let diffBeta = e.beta - this.gyroBaseBeta;
     let diffGamma = e.gamma - this.gyroBaseGamma;
 
-    if (diffBeta  >  180) diffBeta  -= 360;
-    if (diffBeta  < -180) diffBeta  += 360;
-    if (diffGamma >  180) diffGamma -= 360;
+    if (diffBeta > 180) diffBeta -= 360;
+    if (diffBeta < -180) diffBeta += 360;
+    if (diffGamma > 180) diffGamma -= 360;
     if (diffGamma < -180) diffGamma += 360;
 
     const orientation = window.orientation
       || (screen.orientation && screen.orientation.angle) || 0;
 
     let tiltPitch = 0;
-    let tiltRoll  = 0;
+    let tiltRoll = 0;
 
     if (orientation === 90) {
       tiltPitch = -diffGamma;
-      tiltRoll  = -diffBeta;
+      tiltRoll = -diffBeta;
     } else if (orientation === -90 || orientation === 270) {
       tiltPitch = diffGamma;
-      tiltRoll  = diffBeta;
+      tiltRoll = diffBeta;
     } else {
       tiltPitch = -diffGamma;
-      tiltRoll  = -diffBeta;
+      tiltRoll = -diffBeta;
     }
 
     const threshold = 6;
-    this.mobileForward  = tiltPitch >  threshold;
+    this.mobileForward = tiltPitch > threshold;
     this.mobileBackward = tiltPitch < -threshold;
-    this.mobileLeft     = tiltRoll  >  threshold;
-    this.mobileRight    = tiltRoll  < -threshold;
+    this.mobileLeft = tiltRoll > threshold;
+    this.mobileRight = tiltRoll < -threshold;
 
     const deadzone = 1.8;
-    const maxTilt  = 22.0;
+    const maxTilt = 22.0;
 
     const calcAmt = (val) => {
       if (Math.abs(val) <= deadzone) return 0;
@@ -274,7 +274,7 @@ export class InputController {
     };
 
     this.gyroPitchAmt = calcAmt(tiltPitch);
-    this.gyroRollAmt  = calcAmt(tiltRoll);
+    this.gyroRollAmt = calcAmt(tiltRoll);
   }
 
   _initListeners() {
@@ -296,7 +296,7 @@ export class InputController {
 
     window.addEventListener('blur', () => {
       for (const k in this.keys) this.keys[k] = false;
-      this.mouse.isDown    = false;
+      this.mouse.isDown = false;
       this.mouse.rightDown = false;
     });
 
@@ -312,13 +312,13 @@ export class InputController {
 
     window.addEventListener('mousedown', (e) => {
       if (this.isMobile) return;
-      if (e.button === 0) { this.mouse.isDown   = true; this.mouse.clickPulse = true; }
+      if (e.button === 0) { this.mouse.isDown = true; this.mouse.clickPulse = true; }
       if (e.button === 2) { this.mouse.rightDown = true; this.mouse.clickPulse = true; }
     });
 
     window.addEventListener('mouseup', (e) => {
       if (this.isMobile) return;
-      if (e.button === 0) this.mouse.isDown    = false;
+      if (e.button === 0) this.mouse.isDown = false;
       if (e.button === 2) this.mouse.rightDown = false;
     });
 
@@ -326,7 +326,7 @@ export class InputController {
     const triggerFS = () => {
       if (!this.isMobile) return;
       window.removeEventListener('touchstart', triggerFS);
-      window.removeEventListener('click',      triggerFS);
+      window.removeEventListener('click', triggerFS);
       const docEl = document.documentElement;
       const already = document.fullscreenElement
         || document.webkitFullscreenElement
@@ -337,11 +337,11 @@ export class InputController {
           || docEl.webkitRequestFullscreen
           || docEl.mozRequestFullScreen
           || docEl.msRequestFullscreen;
-        if (req) req.call(docEl).catch(() => {});
+        if (req) req.call(docEl).catch(() => { });
       }
     };
     window.addEventListener('touchstart', triggerFS, { passive: true });
-    window.addEventListener('click',      triggerFS, { passive: true });
+    window.addEventListener('click', triggerFS, { passive: true });
   }
 
   /**
@@ -358,7 +358,7 @@ export class InputController {
         const newY = this.mouse.y + this.joystick.normY * speed;
 
         // Clamp to screen
-        const clampedX = Math.max(50, Math.min(window.innerWidth  - 50, newX));
+        const clampedX = Math.max(50, Math.min(window.innerWidth - 50, newX));
         const clampedY = Math.max(50, Math.min(window.innerHeight - 50, newY));
 
         this.mouse.movementX = clampedX - this.mouse.x;
@@ -371,7 +371,7 @@ export class InputController {
         this.mouse.movementX = 0;
         this.mouse.movementY = 0;
         // Gently drift crosshair back to screen center (purely cosmetic)
-        const targetX = window.innerWidth  / 2;
+        const targetX = window.innerWidth / 2;
         const targetY = window.innerHeight / 2;
         const lerpRate = 0.04; // very gentle — doesn't affect ship aim
         this.mouse.x += (targetX - this.mouse.x) * lerpRate;
@@ -401,12 +401,12 @@ export class InputController {
 
   // On mobile, keyboard keys are always false; gyro flags drive movement instead.
   // The ship always has a base throttle regardless — see PlayerShip._handleInput.
-  isForward()  { return this.keys.w || this.keys.ArrowUp    || (this.isMobile && this.mobileForward);  }
-  isBackward() { return this.keys.s || this.keys.ArrowDown  || (this.isMobile && this.mobileBackward); }
-  isLeft()     { return this.keys.a || this.keys.ArrowLeft  || (this.isMobile && this.mobileLeft);     }
-  isRight()    { return this.keys.d || this.keys.ArrowRight || (this.isMobile && this.mobileRight);    }
+  isForward() { return this.keys.w || this.keys.ArrowUp || (this.isMobile && this.mobileForward); }
+  isBackward() { return this.keys.s || this.keys.ArrowDown || (this.isMobile && this.mobileBackward); }
+  isLeft() { return this.keys.a || this.keys.ArrowLeft || (this.isMobile && this.mobileLeft); }
+  isRight() { return this.keys.d || this.keys.ArrowRight || (this.isMobile && this.mobileRight); }
   isBoosting() { return this.keys.Shift || this.mobileBoost; }
-  isFiring()   { return this.keys[' '] || this.mouse.isDown || this.mobileShoot; }
+  isFiring() { return this.keys[' '] || this.mouse.isDown || this.mobileShoot; }
 
   isLocking() {
     if (this.mouse.clickPulse) { this.mouse.clickPulse = false; return true; }

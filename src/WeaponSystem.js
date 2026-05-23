@@ -149,24 +149,7 @@ export class WeaponSystem {
       this.chargeDepleted = false;
     }
 
-    // Target Locking
-    if (inputController.isLocking()) {
-      this._attemptLock();
-    }
-
-    // Verify lock is still valid
-    if (this.lockedEnemy) {
-      if (!this.lockedEnemy.active) {
-        this.lockedEnemy = null;
-      } else {
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        const toEnemy = this.lockedEnemy.mesh.position.clone().sub(this.camera.position).normalize();
-        if (toEnemy.dot(forward) < 0) {
-          this.lockedEnemy = null;
-          this.uiManager.addLog('LOCK LOST - TARGET OUT OF VIEW', 'warning');
-        }
-      }
-    }
+    this.lockedEnemy = null;
 
     // Firing
     const canFire = !this.chargeDepleted && this.charge > 0;
@@ -213,16 +196,11 @@ export class WeaponSystem {
     // Play laser sound effect
     if (this.audioManager) this.audioManager.playLaser();
 
-    let aimDir;
-    if (this.lockedEnemy && this.lockedEnemy.active) {
-      aimDir = this.lockedEnemy.mesh.position.clone().sub(this.camera.position).normalize();
-    } else {
-      const crosshairPos = this.uiManager.currentCrosshairPos;
-      const ndcX = (crosshairPos.x / window.innerWidth) * 2 - 1;
-      const ndcY = -(crosshairPos.y / window.innerHeight) * 2 + 1;
-      this.raycaster.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
-      aimDir = this.raycaster.ray.direction.clone().normalize();
-    }
+    const crosshairPos = this.uiManager.currentCrosshairPos;
+    const ndcX = (crosshairPos.x / window.innerWidth) * 2 - 1;
+    const ndcY = -(crosshairPos.y / window.innerHeight) * 2 + 1;
+    this.raycaster.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
+    const aimDir = this.raycaster.ray.direction.clone().normalize();
 
     const laserVel = aimDir.clone().multiplyScalar(this.projectileSpeed);
 
@@ -313,34 +291,7 @@ export class WeaponSystem {
   }
 
   _attemptLock() {
-    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-    const enemies = this.enemyManager.getEnemies();
-    let closestEnemy = null;
-    let closestDist = Infinity;
-
-    for (const enemy of enemies) {
-      if (!enemy.active || enemy.dying) continue;
-      const distToShip = enemy.mesh.position.distanceTo(this.camera.position);
-      if (distToShip > 1000) continue;
-      const sphere = new THREE.Sphere(enemy.mesh.position, enemy.radius * 3.0);
-      if (this.raycaster.ray.intersectsSphere(sphere)) {
-        if (distToShip < closestDist) {
-          closestDist = distToShip;
-          closestEnemy = enemy;
-        }
-      }
-    }
-
-    if (closestEnemy) {
-      if (this.lockedEnemy === closestEnemy) {
-        this.lockedEnemy = null;
-      } else {
-        this.lockedEnemy = closestEnemy;
-        this.uiManager.addLog('TARGET LOCKED');
-      }
-    } else {
-      this.lockedEnemy = null;
-    }
+    this.lockedEnemy = null;
   }
 
   reset() {

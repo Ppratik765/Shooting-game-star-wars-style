@@ -127,6 +127,10 @@
     <!-- CRT Overlay -->
     <div id="crt-scanlines"></div>
     <div id="crt-overlay"></div>
+    
+    <!-- Weather & Feed Overlays -->
+    <div id="solar-flare-overlay"></div>
+    <div id="killstreak-banner"></div>
   </div>
 
   <!-- Game Over Screen -->
@@ -135,12 +139,30 @@
       <div id="game-over-title">SHIP DESTROYED</div>
       <div id="game-over-static"></div>
       <div id="game-over-stats">
-        <div>TIME SURVIVED: <span id="go-time">00:00</span></div>
-        <div>TARGETS ELIMINATED: <span id="go-kills">0</span></div>
+        <div class="score-card">
+          <div class="score-main">SURVIVED <span id="go-time">00:00</span> | <span id="go-kills">0</span> KILLS</div>
+          <div class="score-pb">PERSONAL BEST: SURVIVED <span id="pb-time">00:00</span> | <span id="pb-kills">0</span> KILLS</div>
+          <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
+        </div>
       </div>
       <button id="retry-button">[ INITIATE CLONING SEQUENCE — RETRY ]</button>
     </div>
   </div>
+
+  <!-- SVG Chromatic Aberration Filter on Damage -->
+  <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+    <defs>
+      <filter id="chroma-damage">
+        <feOffset in="SourceGraphic" dx="-5" dy="0" result="red"></feOffset>
+        <feOffset in="SourceGraphic" dx="5" dy="0" result="blue"></feOffset>
+        <feColorMatrix in="red" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="redG"></feColorMatrix>
+        <feColorMatrix in="blue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blueG"></feColorMatrix>
+        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="greenG"></feColorMatrix>
+        <feBlend mode="screen" in="redG" in2="blueG" result="redblue"></feBlend>
+        <feBlend mode="screen" in="redblue" in2="greenG"></feBlend>
+      </filter>
+    </defs>
+  </svg>
 
   <script type="module" src="/src/main.js"></script>
 </body>

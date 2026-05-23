@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+const SUN1_POS = new THREE.Vector3(2080, 2340, -1560);
+const SUN2_POS = new THREE.Vector3(-1300, 1820, 2080);
+
 export class UIManager {
   constructor() {
     this.crosshair    = document.getElementById('crosshair');
@@ -144,6 +147,7 @@ export class UIManager {
     const rotVal = (dx / (window.innerWidth / 2)) * maxRot;
 
     ctx.clearRect(0, 0, this.arcCanvas.width, this.arcCanvas.height);
+    this._drawLensFlares(ctx);
 
     // --- LEFT ARC: Engine / Stamina ---
     const staminaRatio = playerState.stamina / playerState.maxStamina;
@@ -213,7 +217,85 @@ export class UIManager {
     ctx.textAlign  = 'left';
   }
 
-  update(deltaTime, playerState, gameState, chargeState) {
+  _drawLensFlares(ctx) {
+    if (!this.sunProjCoords || this.sunProjCoords.length === 0) return;
+
+    const hw = window.innerWidth / 2;
+    const hh = window.innerHeight / 2;
+
+    this.sunProjCoords.forEach(sun => {
+      const dx = sun.x - hw;
+      const dy = sun.y - hh;
+
+      const elements = [
+        { factor: 0.35, size: 25, type: 'ring' },
+        { factor: 0.55, size: 12, type: 'ring' },
+        { factor: 0.75, size: 45, type: 'hexagon' },
+        { factor: 0.95, size: 18, type: 'ring' },
+        { factor: 1.15, size: 65, type: 'hexagon' },
+        { factor: -0.25, size: 30, type: 'ring' },
+        { factor: -0.45, size: 15, type: 'ring' }
+      ];
+
+      elements.forEach(el => {
+        const fx = hw + dx * el.factor;
+        const fy = hh + dy * el.factor;
+
+        ctx.strokeStyle = sun.color;
+        ctx.lineWidth = 1;
+        ctx.fillStyle = sun.color;
+
+        ctx.beginPath();
+        if (el.type === 'ring') {
+          ctx.arc(fx, fy, el.size, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(fx, fy, el.size * 0.95, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          // Hexagon
+          for (let side = 0; side < 6; side++) {
+            const angle = (side / 6) * Math.PI * 2;
+            const hx = fx + Math.cos(angle) * el.size;
+            const hy = fy + Math.sin(angle) * el.size;
+            if (side === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      });
+    });
+  }
+
+  update(deltaTime, playerState, gameState, chargeState, camera, isRadarJammed) {
+    this.isRadarJammed = !!isRadarJammed;
+
+    // Toggle radar container jammed visual class
+    const radarContainer = document.getElementById('radar-container');
+    if (radarContainer) {
+      radarContainer.classList.toggle('jammed', this.isRadarJammed);
+    }
+
+    // Project Suns for Lens Flare drawing
+    const hw = window.innerWidth / 2;
+    const hh = window.innerHeight / 2;
+    this.sunProjCoords = [];
+
+    if (camera) {
+      [SUN1_POS, SUN2_POS].forEach((sunPos, idx) => {
+        const pos = sunPos.clone().project(camera);
+        if (pos.z < 1 && pos.z > 0) {
+          const px = pos.x * hw + hw;
+          const py = -(pos.y * hh) + hh;
+          this.sunProjCoords.push({
+            x: px, y: py,
+            color: idx === 0 ? 'rgba(255, 153, 0, 0.08)' : 'rgba(0, 170, 255, 0.08)'
+          });
+        }
+      });
+    }
+
     // Crosshair lerp
     this.currentCrosshairPos.lerp(this.targetCrosshairPos, 0.12);
     const dx = this.currentCrosshairPos.x - window.innerWidth / 2;
@@ -271,6 +353,19 @@ export class UIManager {
     else if (gameState.kills > 5)  threat = 'MEDIUM';
     this.statThreat.innerText = threat;
 
+    // Display customized stall warnings depending on device
+    if (playerState.isStalled) {
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
+      if (isMobile) {
+        this.stallWarning.innerText = "⚠ STALL ⚠";
+      } else {
+        this.stallWarning.innerText = `⚠ MASH CTRL TO RESTART ENGINES (${Math.floor(playerState.stallRecoveryProgress)}%) ⚠`;
+      }
+    } else {
+      this.stallWarning.innerText = "⚠ STALL ⚠";
+    }
+
     this._toggleWarning(this.stallWarning,   playerState.isStalled);
     this._toggleWarning(this.terrainWarning, playerState.terrainWarning && !playerState.isStalled);
   }
@@ -287,9 +382,11 @@ export class UIManager {
     camDir.y = 0; camDir.normalize();
     const camRight = new THREE.Vector3(camDir.z, 0, -camDir.x);
 
-    let isLockedEnemyVisible = false;
-
     const liveBlips = [];
+
+    // Auto-Aim Magnetism
+    let closestEnemyProj = null;
+    let minDistance = Infinity;
 
     for (const enemy of enemies) {
       if (enemy.active && !enemy.dying) {
@@ -312,32 +409,60 @@ export class UIManager {
           bar.fill.style.width  = `${(enemy.hp / enemy.maxHp) * 100}%`;
           bar.div.style.display = 'block';
 
-          if (enemy === lockedEnemy) {
-            isLockedEnemyVisible = true;
-            this.targetLock.style.left = `${px}px`;
-            this.targetLock.style.top  = `${py}px`;
-            this.targetLock.classList.add('active');
+          // Distance of this enemy from current crosshair
+          const distToCrosshair = Math.hypot(px - this.currentCrosshairPos.x, py - this.currentCrosshairPos.y);
+          if (distToCrosshair < minDistance) {
+            minDistance = distToCrosshair;
+            closestEnemyProj = { x: px, y: py };
           }
         } else if (this.hpBars[enemy.id]) {
           this.hpBars[enemy.id].div.style.display = 'none';
         }
 
-        // Collect for sonar
-        const toEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, camera.position);
-        toEnemy.y = 0;
-        const distFwd   = toEnemy.dot(camDir);
-        const distRight = toEnemy.dot(camRight);
-        let rX = distRight * radarScale;
-        let rY = -distFwd  * radarScale;
-        const distRadar = Math.sqrt(rX * rX + rY * rY);
-        if (distRadar > radarRadius) {
-          rX = (rX / distRadar) * radarRadius;
-          rY = (rY / distRadar) * radarRadius;
+        // Collect for sonar (only when not jammed)
+        if (!this.isRadarJammed) {
+          const toEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, camera.position);
+          toEnemy.y = 0;
+          const distFwd   = toEnemy.dot(camDir);
+          const distRight = toEnemy.dot(camRight);
+          let rX = distRight * radarScale;
+          let rY = -distFwd  * radarScale;
+          const distRadar = Math.sqrt(rX * rX + rY * rY);
+          if (distRadar > radarRadius) {
+            rX = (rX / distRadar) * radarRadius;
+            rY = (rY / distRadar) * radarRadius;
+          }
+          liveBlips.push({ rX, rY, isLocked: false });
         }
-        liveBlips.push({ rX, rY, isLocked: enemy === lockedEnemy });
 
       } else if (this.hpBars[enemy.id]) {
         this.hpBars[enemy.id].div.style.display = 'none';
+      }
+    }
+
+    // Apply auto-aim magnetism:
+    // If we have a close target in screen space, pull the targetCrosshairPos slightly towards it
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
+
+    const threshold = isMobile ? 220 : 130;
+    const pullStrength = isMobile ? 0.35 : 0.16; // much stronger magnetism on mobile!
+
+    if (closestEnemyProj && minDistance < threshold) {
+      this.targetCrosshairPos.x = THREE.MathUtils.lerp(this.targetCrosshairPos.x, closestEnemyProj.x, pullStrength);
+      this.targetCrosshairPos.y = THREE.MathUtils.lerp(this.targetCrosshairPos.y, closestEnemyProj.y, pullStrength);
+    }
+
+    // If jammed, generate static noise blips
+    if (this.isRadarJammed) {
+      for (let i = 0; i < 15; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * radarRadius;
+        liveBlips.push({
+          rX: Math.cos(angle) * r,
+          rY: Math.sin(angle) * r,
+          isLocked: false
+        });
       }
     }
 
@@ -374,24 +499,23 @@ export class UIManager {
       const blip = liveBlips[i];
       const el = blipElements[i];
 
-      // percentage positioning: center is 50%. Clamp/map nominal 90px half-width to 50%
       const pctX = 50 + (blip.rX / 90) * 50;
       const pctY = 50 + (blip.rY / 90) * 50;
       el.style.left = `${pctX}%`;
       el.style.top  = `${pctY}%`;
 
-      if (blip.isLocked) {
-        el.style.background = '#00ffaa';
-        el.style.boxShadow  = '0 0 5px #00ffaa';
+      // Visual adjustments for jammed static vs normal blips
+      if (this.isRadarJammed) {
+        el.style.background = '#ff4400';
+        el.style.boxShadow = '0 0 5px #ff4400';
       } else {
         el.style.background = '';
         el.style.boxShadow  = '';
       }
     }
 
-    if (!isLockedEnemyVisible) {
-      this.targetLock.classList.remove('active');
-    }
+    // Target lock brackets are permanently deactivated
+    this.targetLock.classList.remove('active');
   }
 
   setCrosshairTarget(x, y) {
@@ -407,6 +531,32 @@ export class UIManager {
   showGameOver(stats) {
     this.goTime.innerText  = this._formatTime(stats.timeSurvived);
     this.goKills.innerText = stats.kills;
+
+    // Load PBs from localStorage
+    const pbTime = parseFloat(localStorage.getItem('pb_time') || '0');
+    const pbKills = parseInt(localStorage.getItem('pb_kills') || '0');
+
+    let isNewPB = false;
+    if (stats.timeSurvived > pbTime) {
+      localStorage.setItem('pb_time', stats.timeSurvived.toString());
+      isNewPB = true;
+    }
+    if (stats.kills > pbKills) {
+      localStorage.setItem('pb_kills', stats.kills.toString());
+      isNewPB = true;
+    }
+
+    const currentPBTime = Math.max(stats.timeSurvived, pbTime);
+    const currentPBKills = Math.max(stats.kills, pbKills);
+
+    document.getElementById('pb-time').innerText = this._formatTime(currentPBTime);
+    document.getElementById('pb-kills').innerText = currentPBKills;
+
+    const newPbTag = document.getElementById('new-pb-tag');
+    if (newPbTag) {
+      newPbTag.style.display = isNewPB ? 'block' : 'none';
+    }
+
     this.gameOverScreen.classList.add('active');
   }
 
