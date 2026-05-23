@@ -24,6 +24,7 @@ export class AudioManager {
   constructor() {
     this.ctx = null;
     this.ready = false;
+    this.compressor = null;
     this.masterGain = null;
 
     // Decoded buffers
@@ -83,9 +84,20 @@ export class AudioManager {
 
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+      // Add a compressor to prevent loud overlapping sounds (engine + boost) from clipping
+      // and causing the browser to heavily duck all other audio.
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.value = -12;
+      this.compressor.knee.value = 15;
+      this.compressor.ratio.value = 3;
+      this.compressor.attack.value = 0.01;
+      this.compressor.release.value = 0.15;
+      this.compressor.connect(this.ctx.destination);
+
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.85; // Increased master gain for punchier audio
-      this.masterGain.connect(this.ctx.destination);
+      this.masterGain.gain.value = 0.8; // Master volume
+      this.masterGain.connect(this.compressor);
 
       // Set up engine gain node
       this.engineGain = this.ctx.createGain();
@@ -156,9 +168,18 @@ export class AudioManager {
     if (!this.ctx) {
       try {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+        this.compressor = this.ctx.createDynamicsCompressor();
+        this.compressor.threshold.value = -12;
+        this.compressor.knee.value = 15;
+        this.compressor.ratio.value = 3;
+        this.compressor.attack.value = 0.01;
+        this.compressor.release.value = 0.15;
+        this.compressor.connect(this.ctx.destination);
+
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.85;
-        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.gain.value = 0.8;
+        this.masterGain.connect(this.compressor);
 
         this.engineGain = this.ctx.createGain();
         this.engineGain.gain.value = 0.0;
@@ -296,7 +317,7 @@ export class AudioManager {
 
     if (this.boostPlaying) {
       // Fade in/out
-      const targetVol = isBoosting ? 0.5 : 0.0;
+      const targetVol = isBoosting ? 0.35 : 0.0; // Lowered boost volume so it doesn't mask other SFX
       this.boostGain.gain.value += (targetVol - this.boostGain.gain.value) * 0.12;
 
       // Stop source when fully faded out
@@ -346,7 +367,7 @@ export class AudioManager {
 
   _stopWarning() {
     if (this.warningSource) {
-      try { this.warningSource.stop(); } catch (_) {}
+      try { this.warningSource.stop(); } catch (_) { }
       this.warningSource = null;
     }
     this.warningPlaying = false;
@@ -365,9 +386,9 @@ export class AudioManager {
     const panner = this.ctx.createPanner();
     panner.panningModel = 'HRTF';
     panner.distanceModel = 'inverse';
-    panner.refDistance = 150;      // Keeps full volume within 150 units
+    panner.refDistance = 250;      // Keeps full volume within 250 units
     panner.maxDistance = 2500;     // Beyond this it is inaudible
-    panner.rolloffFactor = 1.3;    // Clean volume fall-off
+    panner.rolloffFactor = 1.0;    // Softer fall-off so it remains audible during high-speed boosts
 
     const time = this.ctx.currentTime;
     if (position) {
@@ -446,9 +467,9 @@ export class AudioManager {
     const panner = this.ctx.createPanner();
     panner.panningModel = 'HRTF';
     panner.distanceModel = 'inverse';
-    panner.refDistance = 45;       // Fast volume changes close to ship
-    panner.maxDistance = 1000;
-    panner.rolloffFactor = 1.4;
+    panner.refDistance = 80;       // Faster volume changes but starting further out
+    panner.maxDistance = 1200;
+    panner.rolloffFactor = 1.0;
 
     const pos = enemy.mesh.position;
     const time = this.ctx.currentTime;
@@ -489,14 +510,14 @@ export class AudioManager {
       try { f.source.stop(); } catch (_) { }
     }
     this.activeFlybys = [];
-    
+
     // Restart engine loop
     this._startEngine();
   }
 
   _stopEngine() {
     if (this.engineSource) {
-      try { this.engineSource.stop(); } catch (_) {}
+      try { this.engineSource.stop(); } catch (_) { }
       this.engineSource = null;
     }
     this.enginePlaying = false;
@@ -508,7 +529,7 @@ export class AudioManager {
     this._stopBoost();
     this._stopWarning();
     for (const f of this.activeFlybys) {
-      try { f.source.stop(); } catch (_) {}
+      try { f.source.stop(); } catch (_) { }
     }
     this.activeFlybys = [];
   }
