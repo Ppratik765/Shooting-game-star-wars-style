@@ -14,7 +14,7 @@
 
 <body>
   <div id="app"></div>
-  
+
   <div id="start-screen">
     <div class="start-title">WIREFRAME<br>SPACE SHOOTER</div>
     <button id="btn-lets-play" class="start-btn">LET'S PLAY</button>
@@ -22,17 +22,22 @@
   </div>
 
   <div id="how-to-play-modal" style="display: none;">
-    <div class="modal-content" style="max-width: 800px; padding: 15px; display: flex; flex-direction: column; align-items: center; max-height: 95vh; overflow-y: auto;">
-      <img src="/src/assets/Instructions.png" alt="How to Play" style="max-width: 100%; max-height: 70vh; object-fit: contain; display: block; border-radius: 4px;">
-      <button id="btn-close-modal" class="start-btn" style="margin: 15px auto 0; display: block; flex-shrink: 0;">BACK</button>
+    <div class="modal-content"
+      style="max-width: 800px; padding: 15px; display: flex; flex-direction: column; align-items: center; max-height: 95vh; overflow-y: auto;">
+      <img src="/src/assets/Instructions.png" alt="How to Play"
+        style="max-width: 100%; max-height: 70vh; object-fit: contain; display: block; border-radius: 4px;">
+      <button id="btn-close-modal" class="start-btn"
+        style="margin: 15px auto 0; display: block; flex-shrink: 0;">BACK</button>
     </div>
   </div>
 
   <div id="ui-layer">
     <button id="settings-btn" aria-label="Settings">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
     </button>
 
@@ -127,7 +132,7 @@
     <!-- CRT Overlay -->
     <div id="crt-scanlines"></div>
     <div id="crt-overlay"></div>
-    
+
     <!-- Weather & Feed Overlays -->
     <div id="solar-flare-overlay"></div>
     <div id="killstreak-banner"></div>
@@ -141,7 +146,8 @@
       <div id="game-over-stats">
         <div class="score-card">
           <div class="score-main">SURVIVED <span id="go-time">00:00</span> | <span id="go-kills">0</span> KILLS</div>
-          <div class="score-pb">PERSONAL BEST: SURVIVED <span id="pb-time">00:00</span> | <span id="pb-kills">0</span> KILLS</div>
+          <div class="score-pb">PERSONAL BEST: SURVIVED <span id="pb-time">00:00</span> | <span id="pb-kills">0</span>
+            KILLS</div>
           <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
         </div>
       </div>
@@ -155,15 +161,21 @@
       <filter id="chroma-damage">
         <feOffset in="SourceGraphic" dx="-5" dy="0" result="red"></feOffset>
         <feOffset in="SourceGraphic" dx="5" dy="0" result="blue"></feOffset>
-        <feColorMatrix in="red" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="redG"></feColorMatrix>
-        <feColorMatrix in="blue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blueG"></feColorMatrix>
-        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="greenG"></feColorMatrix>
+        <feColorMatrix in="red" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="redG">
+        </feColorMatrix>
+        <feColorMatrix in="blue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blueG">
+        </feColorMatrix>
+        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
+          result="greenG"></feColorMatrix>
         <feBlend mode="screen" in="redG" in2="blueG" result="redblue"></feBlend>
         <feBlend mode="screen" in="redblue" in2="greenG"></feBlend>
       </filter>
     </defs>
   </svg>
 
+  <div
+    style="position: fixed; bottom: 5px; right: 5px; font-size: 12px; color: rgba(255, 255, 255, 0.3); z-index: 1000; pointer-events: none; font-family: 'VT323', monospace;">
+    Made by Priyanshu</div>
   <script type="module" src="/src/main.js"></script>
 </body>
 
