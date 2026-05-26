@@ -59,7 +59,7 @@ export class GameManager {
     this.radarJammedTimer = 0;
     this.solarFlareActive = false;
     this.lightningFlashTimer = 0;
-    this.nextLightningTime = 180 + 10 + Math.random() * 15;
+    this.nextLightningTime = 75 + 5 + Math.random() * 10;
 
     this.introCinematicTimer = 0.0;
     this.introFinished = true;
@@ -290,12 +290,16 @@ export class GameManager {
     // === Sky Group: Groups stars & suns so they move together with camera ===
     this.skyGroup = new THREE.Group();
     this.scene.add(this.skyGroup);
+    this.scene.background = new THREE.Color(0x000000);
 
     // === Create starfield ===
     this._createStarfield();
 
     // === Create two suns ===
     this._createSuns();
+
+    // === Create lightning line ===
+    this._initLightningLine();
 
     this.uiManager.addLog('ALL SYSTEMS NOMINAL', 'normal');
     this.uiManager.addLog('WEAPONS HOT — ENGAGE AT WILL', 'warning');
@@ -422,6 +426,139 @@ export class GameManager {
     this.scene.add(ambLight);
   }
 
+  _initLightningLine() {
+    this.lightningDummy = new THREE.Object3D();
+
+    // 4-sided solid cylinder geometry with radius 1.0 and height 1.0
+    const geom = new THREE.CylinderGeometry(1.0, 1.0, 1.0, 4, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xdce8ff,
+      transparent: true,
+      opacity: 0.0,
+      wireframe: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    this.lightningMesh = new THREE.InstancedMesh(geom, mat, 80);
+    this.lightningMesh.visible = false;
+    this.scene.add(this.lightningMesh);
+
+    // Dynamic point light that casts lightning glow on terrain and surroundings
+    this.lightningLight = new THREE.PointLight(0xdce8ff, 0.0, 600, 1.2);
+    this.scene.add(this.lightningLight);
+  }
+
+  _triggerLightningStrike() {
+    if (!this.lightningMesh) return;
+
+    // 1. Get player camera orientation
+    const camDir = new THREE.Vector3();
+    this.camera.getWorldDirection(camDir);
+    const rightDir = new THREE.Vector3(camDir.z, 0, -camDir.x).normalize();
+
+    let instanceIdx = 0;
+    const maxInstances = 80;
+    const numBolts = 3;
+    let primaryEndPoint = null;
+
+    // Generate 3 bolts: 1 primary close, 2 background distant
+    for (let b = 0; b < numBolts; b++) {
+      let strikeDistance, horizontalOffset, minHeight, maxHeight;
+      if (b === 0) {
+        // Primary close bolt
+        strikeDistance = 180 + Math.random() * 150;
+        horizontalOffset = (Math.random() - 0.5) * strikeDistance * 0.65;
+        minHeight = 850;
+        maxHeight = 1050;
+      } else {
+        // Background distant bolts
+        strikeDistance = 800 + Math.random() * 900;
+        horizontalOffset = (Math.random() - 0.5) * strikeDistance * 1.2;
+        minHeight = 1000;
+        maxHeight = 1300;
+      }
+
+      const targetCenter = this.camera.position.clone()
+        .addScaledVector(camDir, strikeDistance)
+        .addScaledVector(rightDir, horizontalOffset);
+
+      const terrainH = this.terrain.getHeightAt(targetCenter.x, targetCenter.z);
+      const startPoint = new THREE.Vector3(
+        targetCenter.x + (Math.random() - 0.5) * 150,
+        minHeight + Math.random() * (maxHeight - minHeight),
+        targetCenter.z + (Math.random() - 0.5) * 150
+      );
+      const endPoint = new THREE.Vector3(targetCenter.x, terrainH, targetCenter.z);
+
+      if (b === 0) {
+        primaryEndPoint = endPoint.clone();
+      }
+
+      // Generate segments
+      const numSegments = 10 + Math.floor(Math.random() * 5);
+      const points = [];
+      for (let i = 0; i <= numSegments; i++) {
+        const t = i / numSegments;
+        const p = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
+        if (i > 0 && i < numSegments) {
+          const noiseScale = (b === 0 ? 30.0 : 60.0) * (1.0 - t * 0.35);
+          p.x += (Math.random() - 0.5) * noiseScale;
+          p.y += (Math.random() - 0.5) * (noiseScale * 0.2);
+          p.z += (Math.random() - 0.5) * noiseScale;
+        }
+        points.push(p);
+      }
+
+      // Add segments to instanced mesh
+      const upAxis = new THREE.Vector3(0, 1, 0);
+      const segmentQuat = new THREE.Quaternion();
+      const segmentDir = new THREE.Vector3();
+
+      for (let i = 0; i < numSegments; i++) {
+        if (instanceIdx >= maxInstances) break;
+
+        const pA = points[i];
+        const pB = points[i + 1];
+
+        segmentDir.subVectors(pB, pA);
+        const segmentLen = segmentDir.length();
+        const midpoint = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
+
+        segmentDir.normalize();
+
+        this.lightningDummy.position.copy(midpoint);
+
+        // Scale Y to length, X and Z to thickness (primary is thicker)
+        const thickness = b === 0 ? 2.5 : 1.5;
+        this.lightningDummy.scale.set(thickness, segmentLen, thickness);
+
+        segmentQuat.setFromUnitVectors(upAxis, segmentDir);
+        this.lightningDummy.quaternion.copy(segmentQuat);
+
+        this.lightningDummy.updateMatrix();
+        this.lightningMesh.setMatrixAt(instanceIdx, this.lightningDummy.matrix);
+        instanceIdx++;
+      }
+    }
+
+    this.lightningMesh.count = instanceIdx;
+    this.lightningMesh.instanceMatrix.needsUpdate = true;
+    this.lightningMesh.visible = true;
+    this.lightningMesh.material.opacity = 1.0;
+
+    // Turn on dynamic light at primary strike point
+    if (this.lightningLight && primaryEndPoint) {
+      this.lightningLight.position.copy(primaryEndPoint);
+      this.lightningLight.position.y += 20; // raise slightly to cast light better
+      this.lightningLight.intensity = 25.0; // high intensity flash
+    }
+
+    // Play thunder sound using the spatial explosion sound at primary strike end point
+    if (primaryEndPoint) {
+      this.audioManager.playExplosion(primaryEndPoint);
+    }
+  }
+
   update(deltaTime, currentTime) {
     if (this.isPaused) {
       this.inputController.consumeMovement();
@@ -493,7 +630,10 @@ export class GameManager {
     // 3. Solar Flare Weather Event
     if (this.state.timeSurvived > this.nextSolarFlareTime) {
       this.radarJammedTimer = 10.0;
-      this.nextSolarFlareTime = this.state.timeSurvived + 45;
+      
+      // Solar flares occur more frequently (every 20s instead of 45s) after Minute 2:15 (135 seconds)
+      const flareInterval = (this.state.timeSurvived > 135) ? 20.0 : 45.0;
+      this.nextSolarFlareTime = this.state.timeSurvived + flareInterval;
 
       // Flash full screen white overlay
       const flareOverlay = document.getElementById('solar-flare-overlay');
@@ -520,38 +660,77 @@ export class GameManager {
 
     // 4. Dynamic Skybox Progression & Lightning Flashes
     const time = this.state.timeSurvived;
-    const colorBlue = new THREE.Color(0x000a40);
-    const colorOrange = new THREE.Color(0x381000);
-    const colorRed = new THREE.Color(0x2a0000);
+    const colorBlack = new THREE.Color(0x000000);
+    const colorBlue = new THREE.Color(0x040c26); // toned down, dusty space blue
+    const colorRedOrange = new THREE.Color(0x3d1201); // slightly more vibrant sunset rust
     const currentSkyColor = new THREE.Color();
 
-    if (time < 90) {
-      currentSkyColor.copy(colorBlue);
-    } else if (time < 180) {
-      const u = (time - 90) / 90;
-      currentSkyColor.lerpColors(colorBlue, colorOrange, u);
-    } else {
-      const u = Math.min(1.0, (time - 180) / 90);
-      currentSkyColor.lerpColors(colorOrange, colorRed, u);
+    if (time < 75) {
+      // Minute 0 to 1:15 - Keep sky black
+      currentSkyColor.copy(colorBlack);
+      this.lightningFlashTimer = 0;
+    } else if (time < 135) {
+      // Minute 1:15 to 2:15 - Transition to blue and trigger slight lightning
+      const u = (time - 75) / 60;
+      currentSkyColor.lerpColors(colorBlack, colorBlue, u);
 
-      // Trigger storm lightning
       if (time > this.nextLightningTime) {
-        this.lightningFlashTimer = 0.15;
-        this.nextLightningTime = time + 8 + Math.random() * 12;
+        this.lightningFlashTimer = 0.07;
+        this.nextLightningTime = time + 10.0 + Math.random() * 8.0;
+        this._triggerLightningStrike();
+      }
+    } else {
+      // Minute 2:15+ - Transition to red/orange/yellow and trigger extreme lightning
+      const u = Math.min(1.0, (time - 135) / 60);
+      currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
+
+      if (time > this.nextLightningTime) {
+        this.lightningFlashTimer = 0.07;
+        this.nextLightningTime = time + 2.0 + Math.random() * 3.5;
+        this._triggerLightningStrike();
       }
     }
 
     if (this.lightningFlashTimer > 0) {
       this.lightningFlashTimer -= actualDelta;
+      if (this.lightningFlashTimer <= 0) {
+        this.lightningFlashTimer = 0;
+        if (this.lightningMesh) this.lightningMesh.visible = false;
+        if (this.lightningLight) this.lightningLight.intensity = 0.0;
+      }
+
+      // Blend sky color with lightning flash removed to keep background dark and bolt clear!
+      const flashIntensity = Math.max(0.0, this.lightningFlashTimer / 0.07);
+
+      if (this.lightningMesh) {
+        this.lightningMesh.material.opacity = flashIntensity;
+      }
+      if (this.lightningLight) {
+        this.lightningLight.intensity = flashIntensity * 25.0;
+      }
+    }
+
+    // Apply color only to scene background, keeping fog separate to prevent full-screen filtering
+    if (this.scene.background) {
+      this.scene.background.copy(currentSkyColor);
     }
 
     // 5. Update game entities (applying slow-mo actualDelta)
     this.playerShip.update(actualDelta, this.inputController, this.terrain, false);
+    
+    // Copy lightning flash factor to terrain shader
+    if (this.terrain.material && this.terrain.material.uniforms.uLightning) {
+      this.terrain.material.uniforms.uLightning.value = Math.max(0.0, this.lightningFlashTimer / 0.07);
+    }
     this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
     this.skyGroup.position.copy(this.playerShip.camera.position);
 
     this.enemyManager.update(actualDelta);
-    this.weaponSystem.update(actualDelta, this.inputController, currentTime, this.playerShip.velocity);
+    const weaponInput = this.playerShip.isStalled ? {
+      isFiring: () => false,
+      isLocking: () => false
+    } : this.inputController;
+    this.weaponSystem.update(actualDelta, weaponInput, currentTime, this.playerShip.velocity);
     this.particleSystem.update(actualDelta, this.terrain);
     this.speedLines.update(actualDelta, this.playerShip.isBoosting);
 
@@ -562,7 +741,7 @@ export class GameManager {
     this.audioManager.updateListener(this.playerShip.camera.position, this.playerShip.camera.quaternion);
     this.audioManager.updateEngine(this.playerShip.throttle, shipState.speed);
     this.audioManager.updateBoost(this.playerShip.isBoosting);
-    this.audioManager.updateWarning(shipState.terrainWarning || shipState.isStalled);
+    this.audioManager.updateWarning(shipState.terrainWarning || shipState.isStalled || shipState.isAboveMaxAlt);
     this.audioManager.updateFlyby(actualDelta, this.enemyManager.getEnemies(), this.playerShip.camera.position);
 
     // UI Updates
@@ -634,6 +813,12 @@ export class GameManager {
 
     this.killsSinceLastDamage = 0;
 
+    // Freeze radar sweep animation
+    const radar = document.getElementById('radar-container');
+    if (radar) {
+      radar.classList.add('dead-radar');
+    }
+
     // Position blue wireframe X-Wing at camera cockpit
     this.xwingMesh.position.copy(this.camera.position);
     this.xwingMesh.quaternion.copy(this.camera.quaternion);
@@ -641,7 +826,7 @@ export class GameManager {
 
     // Position escape pod
     this.ejectPod.position.copy(this.camera.position);
-    this.ejectPod.visible = true;
+    this.ejectPod.visible = false;
 
     // Pod ejects upward & slightly back relative to orientation — slowed down
     const localEjectDir = new THREE.Vector3(0, 75, 25);
@@ -657,12 +842,50 @@ export class GameManager {
 
     // Stop flight audio — play explosion but keep world sounds for now
     this.audioManager.playExplosion(this.camera.position);
+    this.audioManager._stopWarning();
+    this.audioManager._stopEngine();
+    this.audioManager._stopBoost();
+
+    if (this.lightningMesh) this.lightningMesh.visible = false;
+    if (this.lightningLight) this.lightningLight.intensity = 0.0;
   }
 
   _updateDeathSequence(deltaTime) {
-    if (this.deathSequenceState === 'gameover') {
+    if (this.deathSequenceState === 'final_freeze') {
       return;
     }
+
+    if (this.deathSequenceState === 'gameover') {
+      if (this.ejectPod) {
+        const terrainH = this.terrain.getHeightAt(this.ejectPod.position.x, this.ejectPod.position.z);
+        const alt = this.ejectPod.position.y - terrainH;
+
+        if (alt <= 100) {
+          this.ejectPod.position.y = terrainH + 100;
+          this.ejectPodVelocity.set(0, 0, 0);
+          this.deathSequenceState = 'final_freeze';
+          return;
+        }
+
+        // Slowly descend at -25 units/second
+        this.ejectPodVelocity.set(0, -25, 0);
+        this.ejectPod.position.addScaledVector(this.ejectPodVelocity, deltaTime);
+
+        // Update camera position to follow the escape pod
+        const offset = new THREE.Vector3(0, 15, 30).applyQuaternion(this.ejectPod.quaternion);
+        this.camera.position.copy(this.ejectPod.position).add(offset);
+
+        // Look at the crash site/X-wing or the pod
+        const site = this.xwingMesh ? this.xwingMesh.position : this.ejectPod.position;
+        this.camera.lookAt(site);
+
+        // Update terrain & sky matching the camera movement
+        this.terrain.update(this.camera.position.x, this.camera.position.z);
+        this.skyGroup.position.copy(this.camera.position);
+      }
+      return;
+    }
+
     this.deathSequenceTimer += deltaTime;
 
     // 1. Fall & tumble X-wing — slowed down
@@ -745,6 +968,9 @@ export class GameManager {
       }
     }
 
+    if (this.terrain.material && this.terrain.material.uniforms.uLightning) {
+      this.terrain.material.uniforms.uLightning.value = Math.max(0.0, this.lightningFlashTimer / 0.07);
+    }
     this.terrain.update(this.camera.position.x, this.camera.position.z);
     this.skyGroup.position.copy(this.camera.position);
 
@@ -876,6 +1102,7 @@ export class GameManager {
     this.radarJammedTimer = 0;
     this.solarFlareActive = false;
     this.lightningFlashTimer = 0;
+    this.nextLightningTime = 75 + 5 + Math.random() * 10;
     this.killCamEndTime = 0;
     this.killCamExplosionPos = null;
 
@@ -885,6 +1112,8 @@ export class GameManager {
     this.timeSinceExplosion = 0;
     if (this.xwingMesh) this.xwingMesh.visible = false;
     if (this.ejectPod) this.ejectPod.visible = false;
+    if (this.lightningMesh) this.lightningMesh.visible = false;
+    if (this.lightningLight) this.lightningLight.intensity = 0.0;
 
     this.playerShip.reset();
     this.enemyManager.reset();
@@ -894,5 +1123,10 @@ export class GameManager {
     this.audioManager.reset();
     this.uiManager.reset();
     this.uiManager.addLog('CLONE ACTIVATED — SYSTEMS ONLINE', 'normal');
+
+    const radar = document.getElementById('radar-container');
+    if (radar) {
+      radar.classList.remove('dead-radar');
+    }
   }
 }

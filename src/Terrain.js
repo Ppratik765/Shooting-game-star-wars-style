@@ -158,7 +158,8 @@ export class Terrain {
         uActualCamX:  { value: 0 },
         uActualCamZ:  { value: 0 },
         uMaxRadius:   { value: this.maxRadius },
-        uFadeStart:   { value: this.fadeStart }
+        uFadeStart:   { value: this.fadeStart },
+        uLightning:   { value: 0.0 }
       },
       vertexShader: /* glsl */`
         uniform float uNoiseScale, uHeightScale, uCamX, uCamZ, uActualCamX, uActualCamZ;
@@ -269,6 +270,7 @@ export class Terrain {
         varying float vRadialDist;
         uniform float uHeightScale;
         uniform float uMaxRadius, uFadeStart;
+        uniform float uLightning;
 
         void main(){
           vec2 c = 2.0 * gl_PointCoord - 1.0;
@@ -306,6 +308,9 @@ export class Terrain {
           float distAlphaCap = mix(1.0, 0.55, smoothstep(1800.0, 2600.0, vDist));
           alpha = min(alpha, distAlphaCap);
           float softEdge = 1.0 - smoothstep(0.6, 1.0, r);
+
+          // Lightning flash hits the terrain
+          col = mix(col, vec3(1.0, 1.0, 1.0), uLightning * 0.95);
 
           gl_FragColor = vec4(col, alpha * softEdge);
         }

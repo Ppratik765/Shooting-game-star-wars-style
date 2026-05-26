@@ -120,6 +120,20 @@ export class PlayerShip {
   }
 
   _handleInput(deltaTime, input) {
+    if (this.isStalled) {
+      // Ignore steering and throttle inputs during stall
+      this.throttle = 20; // idle speed
+      this.isBoosting = false;
+      this.targetFOV = this.baseFOV;
+
+      // Auto nose-dive: lerp pitch towards -0.8 (downward dive)
+      this.pitch = THREE.MathUtils.lerp(this.pitch, -0.8, 1.2 * deltaTime);
+      // Slow spin/tumble: lerp roll to 0.5 and rotate yaw
+      this.roll = THREE.MathUtils.lerp(this.roll, 0.5, 1.0 * deltaTime);
+      this.yaw += 0.4 * deltaTime;
+      return;
+    }
+
     if (input.isMobile) {
       // ── MOBILE FLIGHT ──────────────────────────────────────────────
       // Gyro controls pitch and roll/yaw when available.
@@ -216,9 +230,7 @@ export class PlayerShip {
     }
 
     if (this.isStalled) {
-      if (input && input.isMobile) {
-        this.pitch = THREE.MathUtils.lerp(this.pitch, this.stallRecoveryPitch, 1.5 * deltaTime);
-      } else if (input) {
+      if (input && !input.isMobile) {
         if (input.keys.Control && !this.prevControlPressed) {
           this.stallRecoveryProgress += 15;
           this.triggerShake(0.5); // Add camera kick/shake for tactile feel
@@ -231,7 +243,7 @@ export class PlayerShip {
         if (this.stallRecoveryProgress >= 100) {
           this.isStalled = false;
           this.stallRecoveryProgress = 0;
-          this.pitch = this.stallRecoveryPitch;
+          // Smooth recovery: do not snap pitch!
         }
       }
     } else {

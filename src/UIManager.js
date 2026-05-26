@@ -48,6 +48,7 @@ export class UIManager {
     this.currentCrosshairPos = new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2);
 
     this.hpBars = {};
+    this.crackSeedOffset = Math.floor(Math.random() * 1000);
 
     // === Arc HUD Canvas ===
     this._initArcHUD();
@@ -162,56 +163,101 @@ export class UIManager {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const cracks = [];
-    // Slightly more cracks than before (e.g. 1 at level 1, 9 at level 6)
-    const numCracks = Math.max(1, Math.floor(level * 1.5));
-    const rng = this._seededRandom(42 + level);
 
-    for (let c = 0; c < numCracks; c++) {
-      // Pick an edge point
+    // Use a constant seed for the entire run to prevent PRNG drift between damage levels
+    const rng = this._seededRandom(this.crackSeedOffset);
+
+    const maxCracks = 9;
+    const visibleCracks = Math.max(1, Math.floor(level * 1.5));
+
+    for (let c = 0; c < maxCracks; c++) {
+      // Query edge and start positions deterministically so paths are identical
       const edge = Math.floor(rng() * 4);
       let sx, sy;
+      const rVal1 = rng();
+      const rVal2 = rng();
       switch (edge) {
-        case 0: sx = rng() * w; sy = 0; break;       // top
-        case 1: sx = w; sy = rng() * h; break;        // right
-        case 2: sx = rng() * w; sy = h; break;        // bottom
-        case 3: sx = 0; sy = rng() * h; break;        // left
+        case 0: sx = rVal1 * w; sy = 0; break;       // top
+        case 1: sx = w; sy = rVal2 * h; break;        // right
+        case 2: sx = rVal1 * w; sy = h; break;        // bottom
+        case 3: sx = 0; sy = rVal2 * h; break;        // left
       }
 
-      const points = [{ x: sx, y: sy }];
-      // Slightly more segments for better visibility
-      const segments = 2 + Math.floor(rng() * (level * 1.0));
-      // Slightly longer segments
-      const maxLen = 25 + level * 15;
+      const maxSegments = 8;
+      // Active segment count grows as the damage level increases
+      const activeSegments = Math.max(1, Math.min(maxSegments, Math.floor(1 + level * 1.2)));
 
+      const points = [{ x: sx, y: sy }];
       let curX = sx, curY = sy;
       // Point toward center
       const toCenterX = w / 2 - sx;
       const toCenterY = h / 2 - sy;
       let baseAngle = Math.atan2(toCenterY, toCenterX);
 
-      for (let s = 0; s < segments; s++) {
-        const angle = baseAngle + (rng() - 0.5) * 1.0;
-        const len = 10 + rng() * maxLen;
+      const generatedPoints = [];
+      const branchData = [];
+
+      for (let s = 0; s < maxSegments; s++) {
+        const angleRand = rng();
+        const lenRand = rng();
+        const nextAngleRand = rng();
+        const branchRand1 = rng();
+        const branchRand2 = rng();
+        const branchRand3 = rng();
+
+        const angle = baseAngle + (angleRand - 0.5) * 1.0;
+        // Segment length bounds scale slightly with severity level
+        const maxLen = 15 + level * 8;
+        const len = 8 + lenRand * maxLen;
+
         curX += Math.cos(angle) * len;
         curY += Math.sin(angle) * len;
-        points.push({ x: curX, y: curY });
-        baseAngle = angle + (rng() - 0.5) * 0.5;
+        generatedPoints.push({ x: curX, y: curY });
+
+        baseAngle = angle + (nextAngleRand - 0.5) * 0.5;
 
         // Occasional branch
-        if (rng() > 0.70 && level > 3) {
-          const branchAngle = angle + (rng() > 0.5 ? 1 : -1) * (0.3 + rng() * 0.6);
-          const branchLen = 8 + rng() * maxLen * 0.4;
-          cracks.push({
-            points: [
-              { x: curX, y: curY },
-              { x: curX + Math.cos(branchAngle) * branchLen, y: curY + Math.sin(branchAngle) * branchLen }
-            ],
-            width: 0.5 + rng() * 0.6
+        if (branchRand1 > 0.70) {
+          const branchAngle = angle + (branchRand2 > 0.5 ? 1 : -1) * (0.3 + branchRand3 * 0.6);
+          const branchLen = 8 + lenRand * maxLen * 0.4;
+          branchData.push({
+            segmentIndex: s,
+            start: { x: curX, y: curY },
+            end: {
+              x: curX + Math.cos(branchAngle) * branchLen,
+              y: curY + Math.sin(branchAngle) * branchLen
+            }
           });
         }
       }
-      cracks.push({ points, width: 0.6 + rng() * 1.2 });
+
+      // If this crack index is active at this damage level
+      if (c < visibleCracks) {
+        const crackPoints = [points[0]];
+        for (let s = 0; s < activeSegments; s++) {
+          crackPoints.push(generatedPoints[s]);
+        }
+
+        // Add the main crack line
+        cracks.push({
+          points: crackPoints,
+          width: 0.6 + (c % 3) * 0.4
+        });
+
+        // Add branches (only visible at higher damage levels, branching from active segments)
+        if (level > 3) {
+          for (const branch of branchData) {
+            if (branch.segmentIndex < activeSegments) {
+              cracks.push({
+                points: [branch.start, branch.end],
+                width: 0.3 + (c % 2) * 0.2
+              });
+            }
+          }
+        }
+      }
     }
+
     return cracks;
   }
 
@@ -461,7 +507,7 @@ export class UIManager {
 
     // Altitude warning
     if (this.altWarning) {
-      this.altWarning.classList.toggle('active', playerState.isAboveMaxAlt);
+      this._toggleWarning(this.altWarning, playerState.isAboveMaxAlt);
     }
 
     // Charge warning
@@ -741,6 +787,7 @@ export class UIManager {
     this.stallWarning.classList.remove('active');
     this.terrainWarning.classList.remove('active');
     this.noChargeWarning.classList.remove('active');
+    if (this.altWarning) this.altWarning.classList.remove('active');
     this.activityFeed.innerHTML = '';
     this.enemyUiLayer.innerHTML = '';
     this.hpBars = {};
@@ -750,6 +797,7 @@ export class UIManager {
     this.currentCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
 
     // Clear crack overlay
+    this.crackSeedOffset = Math.floor(Math.random() * 1000);
     this.cachedCracks = null;
     this.cachedCrackLevel = -1;
     if (this.crackCtx) {
