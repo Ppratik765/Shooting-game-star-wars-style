@@ -10,7 +10,6 @@
   <title>Wireframe Space Shooter</title>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/style.css" />
-  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
 </head>
 
 <body>
@@ -130,6 +129,9 @@
       <div class="warning-text">ALTITUDE TOO HIGH, HULL IS COMPROMISED</div>
     </div>
 
+    <!-- Crack Overlay for low hull -->
+    <canvas id="crack-overlay"></canvas>
+
     <!-- CRT Overlay -->
     <div id="crt-scanlines"></div>
     <div id="crt-overlay"></div>
@@ -149,6 +151,7 @@
           <div class="score-main">SURVIVED <span id="go-time">00:00</span> | <span id="go-kills">0</span> KILLS</div>
           <div class="score-pb">PERSONAL BEST: SURVIVED <span id="pb-time">00:00</span> | <span id="pb-kills">0</span>
             KILLS</div>
+          <div id="go-tally"></div>
           <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
         </div>
       </div>

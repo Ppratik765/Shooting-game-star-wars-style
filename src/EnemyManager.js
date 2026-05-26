@@ -459,6 +459,19 @@ export class EnemyManager {
       if (p.age > p.maxAge) { p.active = false; p.mesh.visible = false; continue; }
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
 
+      // Terrain collision — enemy laser hits ground
+      if (this.terrain) {
+        const tH = this.terrain.getHeightAt(p.mesh.position.x, p.mesh.position.z);
+        if (p.mesh.position.y <= tH + 2) {
+          const impactPos = p.mesh.position.clone();
+          impactPos.y = tH;
+          this.particleSystem.spawnLaserImpact(impactPos);
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+      }
+
       const dist = p.mesh.position.distanceTo(playerPos);
       if (dist < 12) {
         p.active = false;

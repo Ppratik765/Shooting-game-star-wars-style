@@ -134,6 +134,27 @@ export class ParticleSystem {
     }
   }
 
+  spawnLaserImpact(position) {
+    const count = this.isMobile ? 8 : 20;
+    for (let i = 0; i < count; i++) {
+      const p = this._getFree();
+      if (!p) break;
+      p.active = true;
+      p.position.copy(position);
+      p.velocity.set(
+        (Math.random() - 0.5) * 60,
+        Math.random() * 35,
+        (Math.random() - 0.5) * 60
+      );
+      p.age = 0;
+      p.life = 0.2 + Math.random() * 0.4;
+      const r = Math.random();
+      if (r > 0.6) p.color.setHex(0xff0000);
+      else if (r > 0.3) p.color.setHex(0xff4400);
+      else p.color.setHex(0xff8800);
+    }
+  }
+
   // === SHOCKWAVE: expanding yellow ring that follows terrain ===
   spawnShockwave(position, terrain) {
     const config = [

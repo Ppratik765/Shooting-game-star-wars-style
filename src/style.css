@@ -467,13 +467,17 @@ html, body {
 }
 
 /* === Chromatic Aberration on Damage === */
-.chroma-active {
-  animation: chroma-flash-anim 0.4s ease-out forwards;
+.chroma-active #crosshair,
+.chroma-active .hud-box,
+.chroma-active #radar-container,
+.chroma-active #meters-container,
+.chroma-active #warning-container {
+  animation: chroma-flash-ui 0.4s ease-out;
 }
-@keyframes chroma-flash-anim {
-  0% { filter: url(#chroma-damage); }
-  50% { filter: url(#chroma-damage); }
-  100% { filter: none; }
+@keyframes chroma-flash-ui {
+  0% { text-shadow: -3px 0 rgba(255,0,0,0.85), 3px 0 rgba(0,255,255,0.85); }
+  50% { text-shadow: -2px 0 rgba(255,0,0,0.6), 2px 0 rgba(0,255,255,0.6); }
+  100% { text-shadow: none; }
 }
 
 /* === Weather Overlay (Solar Flare) === */
@@ -548,4 +552,52 @@ html, body {
   color: rgba(255, 75, 75, 0.68) !important;
   text-shadow: 0 0 4px rgba(255, 75, 75, 0.35) !important;
   font-style: italic;
+}
+
+/* === Crack Overlay (Low Hull) === */
+#crack-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 95;
+}
+
+/* === Kill Tally Marks === */
+#go-tally {
+  margin-top: 12px;
+  font-size: 22px;
+  color: rgba(0, 255, 170, 0.7);
+  text-shadow: 0 0 6px rgba(0, 255, 170, 0.3);
+  letter-spacing: 3px;
+  font-family: 'VT323', monospace;
+  word-spacing: 8px;
+  line-height: 1.6;
+}
+.tally-group {
+  position: relative;
+  display: inline-block;
+  letter-spacing: 2px;
+  padding: 0 3px;
+  margin-right: 8px;
+}
+.tally-diagonal {
+  position: absolute;
+  top: 48%;
+  left: -2px;
+  width: calc(100% + 4px);
+  height: 2px;
+  background: rgba(0, 255, 170, 0.95);
+  box-shadow: 0 0 5px rgba(0, 255, 170, 0.6);
+  transform: rotate(-25deg);
+  transform-origin: center;
+  pointer-events: none;
+}
+.tally-remainder {
+  letter-spacing: 2px;
+  padding: 0 3px;
+}
+
+/* === Start Screen Parallax Title === */
+.start-title {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
 }

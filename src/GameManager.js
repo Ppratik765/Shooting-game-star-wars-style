@@ -91,7 +91,7 @@ export class GameManager {
     this.particleSystem = new ParticleSystem(this.scene, isMobile);
     this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
     this.audioManager = new AudioManager();
-    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager);
+    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
 
     this.enemyManager.terrain = this.terrain;
@@ -251,6 +251,14 @@ export class GameManager {
         this.uiManager.startGame();
         this.state.timeSurvived = 0; // reset clock
 
+        // Remove parallax listener
+        if (this._parallaxHandler) {
+          document.removeEventListener('mousemove', this._parallaxHandler);
+          this._parallaxHandler = null;
+          const title = document.querySelector('.start-title');
+          if (title) title.style.transform = '';
+        }
+
         // Direct fullscreen request on mobile click gesture (highly compliant & reliable)
         if (this.isMobile) {
           const docEl = document.documentElement;
@@ -291,6 +299,20 @@ export class GameManager {
 
     this.uiManager.addLog('ALL SYSTEMS NOMINAL', 'normal');
     this.uiManager.addLog('WEAPONS HOT — ENGAGE AT WILL', 'warning');
+
+    // === Start Screen Parallax Tilt ===
+    this._parallaxHandler = (e) => {
+      const title = document.querySelector('.start-title');
+      if (!title) return;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const dx = (e.clientX - cx) / cx; // -1 to 1
+      const dy = (e.clientY - cy) / cy; // -1 to 1
+      const rotY = dx * 12; // max 12 degrees
+      const rotX = -dy * 8; // max 8 degrees
+      title.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+    };
+    document.addEventListener('mousemove', this._parallaxHandler);
   }
 
   _createStarfield() {
@@ -482,6 +504,14 @@ export class GameManager {
 
       this.uiManager.addLog('WARNING: SOLAR FLARE INTERCEPTED', 'critical');
       this.uiManager.addLog('RADAR JAMMED — TACTICAL STATIC DETECTED', 'warning');
+
+      // Solar flare radio chatter intercepts
+      setTimeout(() => {
+        this.uiManager.addLog(`▸ INTERCEPT: "Damm this Solar flare!"`, 'intercept');
+      }, 1000);
+      setTimeout(() => {
+        this.uiManager.addLog(`▸ INTERCEPT: "I lost him on the radar!"`, 'intercept');
+      }, 2200);
     }
 
     if (this.radarJammedTimer > 0) {
@@ -625,12 +655,14 @@ export class GameManager {
       (Math.random() - 0.5) * 2.0
     );
 
-    // Stop flight audio and play explosion
-    this.audioManager.stopAll();
+    // Stop flight audio — play explosion but keep world sounds for now
     this.audioManager.playExplosion(this.camera.position);
   }
 
   _updateDeathSequence(deltaTime) {
+    if (this.deathSequenceState === 'gameover') {
+      return;
+    }
     this.deathSequenceTimer += deltaTime;
 
     // 1. Fall & tumble X-wing — slowed down
@@ -718,6 +750,9 @@ export class GameManager {
 
     this.particleSystem.update(deltaTime, this.terrain);
 
+    // Keep enemies flying, shooting, and dying during death sequence
+    this.enemyManager.update(deltaTime);
+
     // Update active laser projectiles so they continue moving after death
     const mockInput = { isFiring: () => false };
     this.weaponSystem.update(deltaTime, mockInput, performance.now() / 1000, new THREE.Vector3());
@@ -728,6 +763,7 @@ export class GameManager {
 
     // Delay game over screen display — exactly 1.0 seconds after the X-wing explodes on the ground
     if (this.xwingExploded && this.timeSinceExplosion > 1.0) {
+      this.audioManager.stopAll();
       this.uiManager.showGameOver(this.state);
       this.deathSequenceState = 'gameover';
     }

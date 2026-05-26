@@ -52,6 +52,9 @@ export class UIManager {
     // === Arc HUD Canvas ===
     this._initArcHUD();
 
+    // === Crack overlay canvas ===
+    this._initCrackOverlay();
+
     // === Sonar radar state ===
     this.sonarTimer    = 0;
     this.sonarInterval = 3.0;
@@ -132,6 +135,130 @@ export class UIManager {
   _resizeArcHUD() {
     this.arcCanvas.width  = window.innerWidth;
     this.arcCanvas.height = window.innerHeight;
+  }
+
+  _initCrackOverlay() {
+    this.crackCanvas = document.getElementById('crack-overlay');
+    this.crackCtx = this.crackCanvas ? this.crackCanvas.getContext('2d') : null;
+    this._resizeCrackOverlay();
+    this.cachedCracks = null;
+    this.cachedCrackLevel = -1;
+    window.addEventListener('resize', () => {
+      this._resizeCrackOverlay();
+      this.cachedCracks = null; // regenerate on resize
+      this.cachedCrackLevel = -1;
+    });
+  }
+
+  _resizeCrackOverlay() {
+    if (!this.crackCanvas) return;
+    this.crackCanvas.width = window.innerWidth;
+    this.crackCanvas.height = window.innerHeight;
+  }
+
+  _generateCrackPattern(level) {
+    // level: 1 (just below 30%) to 6 (nearly dead)
+    // Returns an array of crack line segments
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const cracks = [];
+    // Slightly more cracks than before (e.g. 1 at level 1, 9 at level 6)
+    const numCracks = Math.max(1, Math.floor(level * 1.5));
+    const rng = this._seededRandom(42 + level);
+
+    for (let c = 0; c < numCracks; c++) {
+      // Pick an edge point
+      const edge = Math.floor(rng() * 4);
+      let sx, sy;
+      switch (edge) {
+        case 0: sx = rng() * w; sy = 0; break;       // top
+        case 1: sx = w; sy = rng() * h; break;        // right
+        case 2: sx = rng() * w; sy = h; break;        // bottom
+        case 3: sx = 0; sy = rng() * h; break;        // left
+      }
+
+      const points = [{ x: sx, y: sy }];
+      // Slightly more segments for better visibility
+      const segments = 2 + Math.floor(rng() * (level * 1.0));
+      // Slightly longer segments
+      const maxLen = 25 + level * 15;
+
+      let curX = sx, curY = sy;
+      // Point toward center
+      const toCenterX = w / 2 - sx;
+      const toCenterY = h / 2 - sy;
+      let baseAngle = Math.atan2(toCenterY, toCenterX);
+
+      for (let s = 0; s < segments; s++) {
+        const angle = baseAngle + (rng() - 0.5) * 1.0;
+        const len = 10 + rng() * maxLen;
+        curX += Math.cos(angle) * len;
+        curY += Math.sin(angle) * len;
+        points.push({ x: curX, y: curY });
+        baseAngle = angle + (rng() - 0.5) * 0.5;
+
+        // Occasional branch
+        if (rng() > 0.70 && level > 3) {
+          const branchAngle = angle + (rng() > 0.5 ? 1 : -1) * (0.3 + rng() * 0.6);
+          const branchLen = 8 + rng() * maxLen * 0.4;
+          cracks.push({
+            points: [
+              { x: curX, y: curY },
+              { x: curX + Math.cos(branchAngle) * branchLen, y: curY + Math.sin(branchAngle) * branchLen }
+            ],
+            width: 0.5 + rng() * 0.6
+          });
+        }
+      }
+      cracks.push({ points, width: 0.6 + rng() * 1.2 });
+    }
+    return cracks;
+  }
+
+  _seededRandom(seed) {
+    let s = seed;
+    return () => {
+      s = (s * 16807 + 0) % 2147483647;
+      return (s - 1) / 2147483646;
+    };
+  }
+
+  _drawCracks(hpRatio) {
+    if (!this.crackCtx) return;
+    const ctx = this.crackCtx;
+    ctx.clearRect(0, 0, this.crackCanvas.width, this.crackCanvas.height);
+
+    if (hpRatio >= 0.3) {
+      this.cachedCracks = null;
+      this.cachedCrackLevel = -1;
+      return;
+    }
+
+    // Level 1-6 based on how far below 30% we are
+    const severity = 1.0 - (hpRatio / 0.3); // 0 at 30%, 1 at 0%
+    const level = Math.max(1, Math.min(6, Math.ceil(severity * 6)));
+
+    if (level !== this.cachedCrackLevel) {
+      this.cachedCracks = this._generateCrackPattern(level);
+      this.cachedCrackLevel = level;
+    }
+
+    // Increased opacity for better visibility (starts at 0.25, goes up to 0.70)
+    const alpha = 0.25 + severity * 0.45;
+
+    for (const crack of this.cachedCracks) {
+      ctx.beginPath();
+      ctx.moveTo(crack.points[0].x, crack.points[0].y);
+      for (let i = 1; i < crack.points.length; i++) {
+        ctx.lineTo(crack.points[i].x, crack.points[i].y);
+      }
+      ctx.strokeStyle = `rgba(195, 215, 245, ${alpha})`;
+      ctx.lineWidth = crack.width;
+      ctx.shadowColor = `rgba(130, 185, 255, ${alpha * 0.55})`;
+      ctx.shadowBlur = 3;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
   }
 
   _drawArcHUD(chargeState, playerState) {
@@ -368,6 +495,9 @@ export class UIManager {
 
     this._toggleWarning(this.stallWarning,   playerState.isStalled);
     this._toggleWarning(this.terrainWarning, playerState.terrainWarning && !playerState.isStalled);
+
+    // Crack overlay for low hull
+    this._drawCracks(playerState.hp / playerState.maxHp);
   }
 
   updateEnemyUI(camera, enemies, lockedEnemy) {
@@ -558,6 +688,27 @@ export class UIManager {
     }
 
     this.gameOverScreen.classList.add('active');
+
+    // Generate tally marks
+    const tallyEl = document.getElementById('go-tally');
+    if (tallyEl) {
+      tallyEl.innerHTML = this._generateTallyMarks(stats.kills);
+    }
+  }
+
+  _generateTallyMarks(kills) {
+    if (kills <= 0) return '';
+    const fullGroups = Math.floor(kills / 5);
+    const remainder = kills % 5;
+    let html = '';
+
+    for (let i = 0; i < fullGroups; i++) {
+      html += '<span class="tally-group">||||<span class="tally-diagonal"></span></span> ';
+    }
+    if (remainder > 0) {
+      html += `<span class="tally-remainder">${'|'.repeat(remainder)}</span>`;
+    }
+    return html.trim();
   }
 
   hideGameOver() {
@@ -597,5 +748,12 @@ export class UIManager {
     this.sonarTimer = 0;
     this.targetCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
     this.currentCrosshairPos.set(window.innerWidth / 2, window.innerHeight / 2);
+
+    // Clear crack overlay
+    this.cachedCracks = null;
+    this.cachedCrackLevel = -1;
+    if (this.crackCtx) {
+      this.crackCtx.clearRect(0, 0, this.crackCanvas.width, this.crackCanvas.height);
+    }
   }
 }

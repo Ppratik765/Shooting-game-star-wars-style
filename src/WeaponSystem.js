@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 
 export class WeaponSystem {
-  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null) {
+  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null) {
     this.scene = scene;
     this.camera = camera;
     this.enemyManager = enemyManager;
     this.uiManager = uiManager;
     this.isMobile = isMobile;
     this.audioManager = audioManager;
+    this.terrain = terrain;
+    this.particleSystem = particleSystem;
 
     // Charge system
     this.maxCharge = 70;
@@ -180,6 +182,20 @@ export class WeaponSystem {
       }
       if (p.light) {
         p.light.position.copy(p.mesh.position);
+      }
+
+      // Terrain collision — laser hits ground
+      if (this.terrain) {
+        const tH = this.terrain.getHeightAt(p.mesh.position.x, p.mesh.position.z);
+        if (p.mesh.position.y <= tH + 2) {
+          if (this.particleSystem) {
+            const impactPos = p.mesh.position.clone();
+            impactPos.y = tH;
+            this.particleSystem.spawnLaserImpact(impactPos);
+          }
+          this._deactivate(p);
+          continue;
+        }
       }
 
       this._checkCollisions(p);
