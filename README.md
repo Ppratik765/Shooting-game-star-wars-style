@@ -8,15 +8,14 @@ Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro
 
 ## Table of Contents
 
-1. [Academic Context](#1-academic-context)
-2. [Key Features](#2-key-features)
-3. [Core Systems Architecture](#3-core-systems-architecture)
-4. [Directory Structure](#4-directory-structure)
-5. [Controls & Interaction](#5-controls--interaction)
-6. [Installation & Setup](#6-installation--setup)
-7. [Technical Stack](#7-technical-stack)
-8. [Audio Attribution](#8-audio-attribution)
-9. [License & Citation](#9-license--citation)
+1. [Key Features](#2-key-features)
+2. [Core Systems Architecture](#3-core-systems-architecture)
+3. [Directory Structure](#4-directory-structure)
+4. [Controls & Interaction](#5-controls--interaction)
+5. [Installation & Setup](#6-installation--setup)
+6. [Technical Stack](#7-technical-stack)
+7. [Audio Attribution](#8-audio-attribution)
+8. [License & Citation](#9-license--citation)
 
 ---
 
