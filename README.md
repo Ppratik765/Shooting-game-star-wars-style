@@ -2,20 +2,20 @@
 
 ## Overview
 
-Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro arcade flight simulator featuring cinematic death sequences and smooth combat mechanics. Players navigate a perilous, procedurally generated wireframe hills, managing thrust and weapon charge while engaging dynamic enemy formations. With a strict focus on arcade-perfect responsiveness, atmospheric visuals, and weighty flight physics, the project delivers a deeply immersive space combat experience directly in the browser.
+Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro arcade flight simulator featuring cinematic death sequences and smooth combat mechanics. Players navigate perilous, procedurally generated wireframe hills, managing thrust and weapon charge while engaging dynamic enemy formations. With a strict focus on arcade-perfect responsiveness, atmospheric visuals, and weighty flight physics, the project delivers a deeply immersive space combat experience directly in the browser.
 
 ---
 
 ## Table of Contents
 
-1. [Key Features](#1-key-features)
-2. [Core Systems Architecture](#2-core-systems-architecture)
-3. [Directory Structure](#3-directory-structure)
-4. [Controls & Interaction](#4-controls--interaction)
-5. [Installation & Setup](#5-installation--setup)
-6. [Technical Stack](#6-technical-stack)
-7. [Audio Attribution](#7-audio-attribution)
-8. [License & Citation](#8-license--citation)
+1. [Key Features](#key-features)
+2. [Core Systems Architecture](#core-systems-architecture)
+3. [Directory Structure](#directory-structure)
+4. [Controls & Interaction](#controls--interaction)
+5. [Installation & Setup](#installation--setup)
+6. [Technical Stack](#technical-stack)
+7. [Audio Attribution](#audio-attribution)
+8. [License & Citation](#license--citation)
 
 ---
 
@@ -23,6 +23,8 @@ Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro
 
 * **Advanced Flight Mechanics**: Physics-based 6-DOF movement featuring inertia, simulated mass, thrust/boost mechanics, and stalling logic based on pitch angles.
 * **Dynamic Combat System**: Energy-based projectile weapons utilising object pooling for performance. Features cooling cycles, screen-shake impacts, and raycast-based aiming convergence.
+* **Risk-Reward Power-Up System**: Enemies destroyed via terrain impact have a chance to drop temporary buffs (Weapon Overdrive, Infinite Engines, Hull Repair). Players must execute perilous low-altitude dives to collect them, tracked via a dynamic SVG UI timer.
+* **Global Competitive Leaderboard**: Serverless backend integration tracking player high scores, survival times, and device types (Desktop/Mobile/Tablet) across global sessions.
 * **Atmospheric Visuals**: A striking retro-futuristic wireframe aesthetic overlaid with modern post-processing. Utilises `UnrealBloomPass` for intense neon glows, volumetric ground fog (`FogExp2`), and procedurally generated point-cloud terrain using Simplex noise.
 * **Intelligent Enemy Formations**: TIE-variant enemy ships featuring predictive interception logic, swarm behaviours, and environmental collision detection (crashing into procedural terrain).
 * **Responsive Tactical UI/UX**: Diegetic HUD elements built with HTML/CSS superimposed over the WebGL canvas. Features real-time spatial radar, an Arc HUD for stamina and charge tracking, dynamic crosshair lerping, and cinematic camera transitions upon critical events.
@@ -37,10 +39,12 @@ Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro
 | **GameManager** | Manages the main game loop, state transitions, time scaling, and scene rendering. | Initializes and coordinates all other managers; dictates game over states. |
 | **PlayerShip** | Calculates 6-DOF physics, handles stamina regeneration, gravity, lift, and camera manipulation. | Receives input from `InputController`; interacts with `Terrain` for collision detection. |
 | **WeaponSystem** | Maintains an object pool of projectiles to ensure optimal memory performance. | Calculates raycast trajectories; checks bounding-sphere collisions with enemies. |
-| **EnemyManager** | Spawns and animates enemy units, manages wave difficulty, and flight AI. | Uses `Terrain` to calculate environmental crashes; triggers `ParticleSystem` on death. |
+| **EnemyManager** | Spawns and animates enemy units, manages wave difficulty, and flight AI. | Uses `Terrain` to calculate environmental crashes; triggers `PowerUpManager` on death. |
+| **PowerUpManager** | Manages the object pool for salvage drops (Hull Repair, Overdrive, Engines). | Spawns drops on enemy terrain crashes; updates UI buff timers and modifies player states. |
 | **ParticleSystem** | Handles high-performance `THREE.InstancedMesh` explosions. | Manages airbursts and ground-impact shockwaves without instantiating new geometries. |
 | **AudioManager** | Manages all Web Audio API nodes, spatial panning, and asynchronous decoding. | Dynamically alters engine pitch based on velocity; tracks enemy positions for flyby audio. |
 | **UIManager** | Bridges the 3D space to the 2D DOM. Renders the Arc HUD, radar blips, and UI overlays. | Projects 3D enemy coordinates to 2D screen space for floating health bars. |
+| **Leaderboard API** | Serverless endpoints (`/api/`) for managing global high scores. | Connects to Upstash Redis database to fetch and submit player statistics. |
 
 ---
 
@@ -48,6 +52,9 @@ Wire Frame Space Shooter is a high-intensity, 6-Degrees-of-Freedom (6-DOF) retro
 
 ```text
 Wire Frame Shooting/
+├── api/                    # Vercel Serverless Functions
+│   ├── getLeaderboard.js   # Fetches top global scores from Upstash Redis
+│   └── submitScore.js      # Submits new personal bests with device tracking
 ├── dist/                   # Production build output
 ├── node_modules/           # Project dependencies
 ├── public/                 # Static assets
@@ -60,6 +67,7 @@ Wire Frame Shooting/
 │   ├── InputController.js  # Keyboard, mouse, and device orientation handling
 │   ├── ParticleSystem.js   # Instanced mesh visual effects for explosions
 │   ├── PlayerShip.js       # Player physics, gravity, and state tracking
+│   ├── PowerUpManager.js   # Procedural salvage drops and buff durations
 │   ├── Terrain.js          # Procedural wireframe canyon generation (Simplex Noise)
 │   ├── UIManager.js        # Heads-up display, radar, and 3D-to-2D UI mapping
 │   ├── WeaponSystem.js     # Projectile pooling, raycasting, and hit detection
@@ -95,26 +103,33 @@ Wire Frame Shooting/
 
 1. **Clone the repository**: Ensure you have Node.js installed on your system.
 2. **Install dependencies**: Navigate to the project root and run:
+
 ```bash
 npm install
 
 ```
 
+3. **Configure Environment Variables**: Create a `.env` file in the root directory for leaderboard database access:
 
-3. **Start the development server**: Launch the local Vite development environment by running:
+```text
+UPSTASH_REDIS_REST_URL="https://your-database-url.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your-long-secret-token"
+
+```
+
+4. **Start the development server**: Launch the local Vite development environment by running:
+
 ```bash
 npm run dev
 
 ```
 
+5. **Build for production**: To create an optimized, minified build in the `dist` directory, run:
 
-4. **Build for production**: To create an optimized, minified build in the `dist` directory, run:
 ```bash
 npm run build
 
 ```
-
-
 
 ---
 
@@ -126,9 +141,10 @@ npm run build
 * **Audio**: Native Web Audio API
 * **Procedural Math**: `simplex-noise`
 * **Interface**: HTML5, CSS3
+* **Backend / Database**: Vercel Serverless Functions, Upstash Redis
 * **Build Tool**: Vite
 
-The application is built entirely without heavy frontend frameworks (like React or Vue) to ensure minimal overhead. It leverages an object pooling architecture for projectiles and particles, maintaining a consistent 60+ FPS performance even during intense combat scenarios with heavy post-processing.
+The application is built entirely without heavy frontend frameworks (like React or Vue) to ensure minimal overhead. It leverages an object pooling architecture for projectiles, power-ups, and particles, maintaining a consistent 60+ FPS performance even during intense combat scenarios with heavy post-processing.
 
 ---
 
