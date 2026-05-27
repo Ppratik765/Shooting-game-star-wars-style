@@ -20,7 +20,7 @@ export class UIManager {
     this.targetLock   = document.getElementById('target-lock');
     this.radarBlips   = document.getElementById('radar-blips');
     this.boostVignette = document.getElementById('boost-vignette');
-    this.boostVignette = document.getElementById('boost-vignette');
+    this.shieldBubble  = document.getElementById('shield-bubble');
     this.altWarning   = document.getElementById('altitude-warning');
 
     // Start Screen
@@ -75,6 +75,212 @@ export class UIManager {
         uiResizePending = false;
       });
     });
+
+    // Powerup HUD caching
+    this.powerupTimerContainer = document.getElementById('powerup-timer-container');
+    this.powerupRingFill = document.getElementById('powerup-ring-fill');
+    this.powerupTimerLabel = document.getElementById('powerup-timer-label');
+
+    // Leaderboard HUD caching
+    this.leaderboardBtn = document.getElementById('leaderboard-btn');
+    this.leaderboardSubmitContainer = document.getElementById('leaderboard-submit-container');
+    this.leaderboardAliasInput = document.getElementById('leaderboard-alias');
+    this.btnSubmitScore = document.getElementById('btn-submit-score');
+    this.leaderboardDisplayContainer = document.getElementById('leaderboard-display-container');
+    this.leaderboardRows = document.getElementById('leaderboard-rows');
+    this.btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
+
+    this._setupLeaderboardEvents();
+  }
+
+  _setupLeaderboardEvents() {
+    // 1. Mobile keyboard zoom prevention and positioning checks
+    if (this.leaderboardAliasInput) {
+      this.leaderboardAliasInput.addEventListener('focus', () => {
+        // Prevent viewport scaling/zooming on mobile focus by programmatically resetting viewport scale
+        const vpMeta = document.querySelector('meta[name="viewport"]');
+        if (vpMeta) {
+          vpMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+        }
+      });
+    }
+
+    // 2. Leaderboard Button: handles viewing high scores or callsign input
+    if (this.leaderboardBtn) {
+      this.leaderboardBtn.addEventListener('click', () => {
+        if (this.inputController && this.inputController.isMobile) {
+          // Play click
+          if (this.audioManager) this.audioManager.playUIClick();
+        }
+        
+        const text = this.leaderboardBtn.textContent;
+        if (text.includes('SUBMIT')) {
+          // Open callsign upload overlay
+          this.leaderboardSubmitContainer.style.display = 'flex';
+          this.leaderboardDisplayContainer.style.display = 'none';
+          this.leaderboardAliasInput.value = '';
+          this.leaderboardAliasInput.focus();
+        } else {
+          // Fetch and view ranks
+          this.leaderboardSubmitContainer.style.display = 'none';
+          this.leaderboardDisplayContainer.style.display = 'flex';
+          this._fetchAndRenderLeaderboard();
+        }
+      });
+    }
+
+    // 3. Score Upload Button
+    if (this.btnSubmitScore) {
+      this.btnSubmitScore.addEventListener('click', async () => {
+        const name = this.leaderboardAliasInput.value.trim().toUpperCase();
+        if (!name) {
+          alert('ENTER CALLSIGN');
+          return;
+        }
+
+        const stats = this.gameOverStats || { kills: 0, timeSurvived: 0 };
+        const deviceType = this._detectDevice();
+
+        this.btnSubmitScore.disabled = true;
+        const submitFn = async (confirmOverwrite = false) => {
+          this.btnSubmitScore.disabled = true;
+          this.btnSubmitScore.textContent = 'TRANSMITTING...';
+
+          try {
+            const response = await fetch('/api/submitScore', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                score: stats.kills,
+                time: stats.timeSurvived,
+                device: deviceType,
+                confirmOverwrite
+              })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              // Save personal best to localStorage
+              localStorage.setItem('pb_kills', stats.kills.toString());
+              localStorage.setItem('pb_time', stats.timeSurvived.toString());
+              localStorage.setItem('pb_submitted', stats.kills.toString());
+
+              // Hide submission, show ranks
+              this.leaderboardSubmitContainer.style.display = 'none';
+              this.leaderboardDisplayContainer.style.display = 'flex';
+              this._fetchAndRenderLeaderboard();
+
+              // Toggle dynamic buttons
+              this.leaderboardBtn.textContent = '[ VIEW LEADERBOARD ]';
+              
+              // Hide personal best glow effects
+              const newPbTag = document.getElementById('new-pb-tag');
+              if (newPbTag) newPbTag.style.display = 'none';
+            } else if (data.code === 'RECORD_NOT_SUPERIOR') {
+              alert(`[ TRANSMISSION BLOCKED ]\nIMPERIAL DATABASE SHOWS CALLSIGN "${name}" IS ALREADY RESERVED BY A DECORATED PILOT WITH A SUPERIOR OR EQUAL RECORD (${data.existingScore} KILLS).\n\nIf you are a different pilot, please select a unique callsign to register your telemetry.`);
+              if (this.leaderboardAliasInput) {
+                this.leaderboardAliasInput.focus();
+                this.leaderboardAliasInput.select();
+              }
+            } else if (data.code === 'REQUIRES_OVERWRITE_CONFIRMATION') {
+              const confirmMsg = `[ CALLSIGN COLLISION DETECTED ]\nATTENTION PILOT: Callsign "${name}" is already registered in the databanks with ${data.existingScore} kills.\n\n- Click OK if this is your own record and you wish to overwrite it with your new personal best of ${stats.kills} kills.\n- Click CANCEL if you are a different pilot and want to choose a different callsign.`;
+              if (confirm(confirmMsg)) {
+                await submitFn(true); // Resubmit with overwrite confirm
+              } else {
+                if (this.leaderboardAliasInput) {
+                  this.leaderboardAliasInput.focus();
+                  this.leaderboardAliasInput.select();
+                }
+              }
+            } else {
+              alert(data.error || 'TRANSMISSION FAILED');
+            }
+          } catch (err) {
+            console.error(err);
+            alert('DATABASE CONNECTION ERROR');
+          } finally {
+            this.btnSubmitScore.disabled = false;
+            this.btnSubmitScore.textContent = '[ UPLOAD DATA ]';
+          }
+        };
+
+        await submitFn(false);
+      });
+    }
+
+    // 4. Close Leaderboard Button
+    if (this.btnCloseLeaderboard) {
+      this.btnCloseLeaderboard.addEventListener('click', () => {
+        this.leaderboardDisplayContainer.style.display = 'none';
+      });
+    }
+  }
+
+  async _fetchAndRenderLeaderboard() {
+    if (!this.leaderboardRows) return;
+    this.leaderboardRows.innerHTML = '<tr><td colspan="5" style="color: #00ffaa; text-shadow: 0 0 8px #00ffaa; text-align: center; padding: 20px;">ACQUIRING ENCRYPTED SATELLITE LINK...</td></tr>';
+
+    try {
+      const response = await fetch('/api/getLeaderboard');
+      const data = await response.json();
+
+      if (data.success && data.leaderboard) {
+        this.leaderboardRows.innerHTML = '';
+        if (data.leaderboard.length === 0) {
+          this.leaderboardRows.innerHTML = '<tr><td colspan="5" style="color: rgba(0, 255, 170, 0.5); text-align: center; padding: 20px;">NO PILOTS LOGGED IN SECTOR</td></tr>';
+          return;
+        }
+
+        data.leaderboard.forEach((entry, idx) => {
+          const rank = idx + 1;
+          const tr = document.createElement('tr');
+          
+          let rankClass = '';
+          if (rank === 1) rankClass = 'row-top-1';
+          else if (rank === 2) rankClass = 'row-top-2';
+          else if (rank === 3) rankClass = 'row-top-3';
+
+          // Device badge
+          let badgeClass = 'badge-desktop';
+          if (entry.device === 'Mobile') badgeClass = 'badge-mobile';
+          else if (entry.device === 'Tablet') badgeClass = 'badge-tablet';
+
+          // Format survival time
+          const mins = Math.floor(entry.time / 60).toString().padStart(2, '0');
+          const secs = Math.floor(entry.time % 60).toString().padStart(2, '0');
+          const timeStr = `${mins}:${secs}`;
+
+          tr.innerHTML = `
+            <td class="${rankClass}">#${rank}</td>
+            <td class="${rankClass}" style="letter-spacing: 2px;">${entry.name}</td>
+            <td><span class="device-badge ${badgeClass}">${entry.device}</span></td>
+            <td class="${rankClass}">${entry.kills}</td>
+            <td>${timeStr}</td>
+          `;
+          this.leaderboardRows.appendChild(tr);
+        });
+      } else {
+        this.leaderboardRows.innerHTML = '<tr><td colspan="5" style="color: #ff3300; text-align: center; padding: 20px;">LINK OFFLINE: ENCRYPTION FAIL</td></tr>';
+      }
+    } catch (err) {
+      console.error(err);
+      this.leaderboardRows.innerHTML = '<tr><td colspan="5" style="color: #ff3300; text-align: center; padding: 20px;">DATABASE OFFLINE: CONNECTION LOST</td></tr>';
+    }
+  }
+
+  _detectDevice() {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+      return 'Tablet';
+    }
+    if (/Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(ua)) {
+      return 'Mobile';
+    }
+    if (navigator.maxTouchPoints > 1 && window.innerWidth < 1200) {
+      return 'Tablet';
+    }
+    return 'Desktop';
   }
 
   _setupStartScreen() {
@@ -444,8 +650,28 @@ export class UIManager {
     });
   }
 
-  update(deltaTime, playerState, gameState, chargeState, camera, isRadarJammed) {
+  update(deltaTime, playerState, gameState, chargeState, camera, isRadarJammed, activePowerUp = null, powerUpTimeRemaining = 0.0) {
     this.isRadarJammed = !!isRadarJammed;
+
+    // Shield overlay
+    if (this.shieldBubble) {
+      this.shieldBubble.classList.toggle('active', !!playerState.shieldActive);
+    }
+
+    // Power-up circular HUD animation
+    if (activePowerUp && powerUpTimeRemaining > 0) {
+      if (this.powerupTimerContainer) this.powerupTimerContainer.style.display = 'flex';
+      if (this.powerupTimerLabel) this.powerupTimerLabel.textContent = `${powerUpTimeRemaining.toFixed(1)}s`;
+
+      const pct = Math.max(0, Math.min(1, powerUpTimeRemaining / 10.0));
+      const offset = 144.51 * (1.0 - pct);
+      if (this.powerupRingFill) {
+        this.powerupRingFill.style.strokeDashoffset = offset;
+        this.powerupRingFill.style.stroke = activePowerUp === 'SHIELD' ? '#ffcc00' : '#00ff66';
+      }
+    } else {
+      if (this.powerupTimerContainer) this.powerupTimerContainer.style.display = 'none';
+    }
 
     // Toggle radar container jammed visual class
     const radarContainer = document.getElementById('radar-container');
@@ -553,7 +779,7 @@ export class UIManager {
     this._drawCracks(playerState.hp / playerState.maxHp);
   }
 
-  updateEnemyUI(camera, enemies, lockedEnemy) {
+  updateEnemyUI(camera, enemies, lockedEnemy, activePowerUps = []) {
     const hw = window.innerWidth  / 2;
     const hh = window.innerHeight / 2;
 
@@ -615,11 +841,29 @@ export class UIManager {
             rX = (rX / distRadar) * radarRadius;
             rY = (rY / distRadar) * radarRadius;
           }
-          liveBlips.push({ rX, rY, isLocked: false });
+          liveBlips.push({ rX, rY, isLocked: false, isPowerUp: false });
         }
 
       } else if (this.hpBars[enemy.id]) {
         this.hpBars[enemy.id].div.style.display = 'none';
+      }
+    }
+
+    // Collect active powerups for radar (only when not jammed)
+    if (!this.isRadarJammed && activePowerUps) {
+      for (const item of activePowerUps) {
+        const toPowerUp = new THREE.Vector3().subVectors(item.group.position, camera.position);
+        toPowerUp.y = 0;
+        const distFwd   = toPowerUp.dot(camDir);
+        const distRight = toPowerUp.dot(camRight);
+        let rX = distRight * radarScale;
+        let rY = -distFwd  * radarScale;
+        const distRadar = Math.sqrt(rX * rX + rY * rY);
+        if (distRadar > radarRadius) {
+          rX = (rX / distRadar) * radarRadius;
+          rY = (rY / distRadar) * radarRadius;
+        }
+        liveBlips.push({ rX, rY, isPowerUp: true, type: item.type });
       }
     }
 
@@ -690,11 +934,21 @@ export class UIManager {
       el.style.left = `${pctX}%`;
       el.style.top  = `${pctY}%`;
 
-      // Visual adjustments for jammed static vs normal blips
+      // Visual adjustments for jammed static vs normal blips vs power-ups
       if (this.isRadarJammed) {
+        el.className = 'radar-blip';
         el.style.background = '#ff4400';
         el.style.boxShadow = '0 0 5px #ff4400';
+      } else if (blip.isPowerUp) {
+        if (blip.type === 'HULL') {
+          el.className = 'radar-blip powerup-hull';
+        } else {
+          el.className = 'radar-blip powerup-shield';
+        }
+        el.style.background = '';
+        el.style.boxShadow = '';
       } else {
+        el.className = 'radar-blip';
         el.style.background = '';
         el.style.boxShadow  = '';
       }
@@ -715,6 +969,8 @@ export class UIManager {
   }
 
   showGameOver(stats) {
+    this.gameOverStats = stats; // Cache stats for upload
+
     this.goTime.innerText  = this._formatTime(stats.timeSurvived);
     this.goKills.innerText = stats.kills;
 
@@ -722,18 +978,31 @@ export class UIManager {
     const pbTime = parseFloat(localStorage.getItem('pb_time') || '0');
     const pbKills = parseInt(localStorage.getItem('pb_kills') || '0');
 
+    // Check if player beat their personal best
     let isNewPB = false;
-    if (stats.timeSurvived > pbTime) {
-      localStorage.setItem('pb_time', stats.timeSurvived.toString());
-      isNewPB = true;
-    }
     if (stats.kills > pbKills) {
-      localStorage.setItem('pb_kills', stats.kills.toString());
+      isNewPB = true;
+    } else if (stats.kills === pbKills && stats.timeSurvived > pbTime) {
       isNewPB = true;
     }
 
-    const currentPBTime = Math.max(stats.timeSurvived, pbTime);
-    const currentPBKills = Math.max(stats.kills, pbKills);
+    // Dynamic Leaderboard button
+    if (this.leaderboardBtn) {
+      if (isNewPB && stats.kills > 0) {
+        this.leaderboardBtn.textContent = '[ SUBMIT SCORE ]';
+      } else {
+        this.leaderboardBtn.textContent = '[ VIEW LEADERBOARD ]';
+      }
+    }
+
+
+
+    // Hide overlays by default
+    if (this.leaderboardSubmitContainer) this.leaderboardSubmitContainer.style.display = 'none';
+    if (this.leaderboardDisplayContainer) this.leaderboardDisplayContainer.style.display = 'none';
+
+    const currentPBTime = isNewPB ? stats.timeSurvived : pbTime;
+    const currentPBKills = isNewPB ? stats.kills : pbKills;
 
     document.getElementById('pb-time').innerText = this._formatTime(currentPBTime);
     document.getElementById('pb-kills').innerText = currentPBKills;

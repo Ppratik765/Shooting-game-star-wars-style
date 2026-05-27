@@ -48,6 +48,8 @@ export class PlayerShip {
     this.stallRecoveryPitch = -0.3;
     this.stallRecoveryProgress = 0;
     this.prevControlPressed = false;
+    this.infiniteEnginesActive = false;
+    this.shieldActive = false;
 
     // Death state
     this.isDying = false;
@@ -263,7 +265,9 @@ export class PlayerShip {
 
   _updateStamina(deltaTime) {
     if (this.isBoosting) {
-      this.stamina -= this.staminaDrainRate * deltaTime;
+      if (!this.infiniteEnginesActive) {
+        this.stamina -= this.staminaDrainRate * deltaTime;
+      }
       if (this.stamina <= 0) {
         this.stamina = 0;
         this.staminaDepleted = true;
@@ -333,6 +337,8 @@ export class PlayerShip {
     this.targetFOV = this.baseFOV;
     this.altitude = 200;
     this.shakeTimer = 0;
+    this.infiniteEnginesActive = false;
+    this.shieldActive = false;
   }
 
   getState() {
@@ -343,6 +349,7 @@ export class PlayerShip {
       speed: this.velocity.length(),
       hp: this.hp, maxHp: this.maxHp,
       isStalled: this.isStalled,
+      shieldActive: this.shieldActive,
       stallRecoveryProgress: this.stallRecoveryProgress,
       terrainWarning: this.terrainWarning, terrainCrashed: this.terrainCrashed,
       altitude: this.altitude, isAboveMaxAlt: this.isAboveMaxAlt

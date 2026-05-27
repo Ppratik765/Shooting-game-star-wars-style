@@ -8,6 +8,7 @@ import { ParticleSystem } from './ParticleSystem.js';
 import { EnemyManager } from './EnemyManager.js';
 import { AudioManager } from './AudioManager.js';
 import { SpeedLines } from './SpeedLines.js';
+import { PowerUpManager } from './PowerUpManager.js';
 
 function createCircularGlowTexture(colorHex, coreColorHex = '#ffffff') {
   const canvas = document.createElement('canvas');
@@ -89,11 +90,17 @@ export class GameManager {
 
     this.terrain = new Terrain(this.scene, isMobile);
     this.particleSystem = new ParticleSystem(this.scene, isMobile);
+    this.powerUpManager = new PowerUpManager(this.scene, isMobile);
     this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
+    this.enemyManager.powerUpManager = this.powerUpManager;
     this.audioManager = new AudioManager();
     this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
     this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
+
+    // Active power-up tracking state
+    this.activePowerUp = null; // 'WEAPONS' or 'ENGINES'
+    this.powerUpTimeRemaining = 0.0;
 
     this.enemyManager.terrain = this.terrain;
 
@@ -166,6 +173,11 @@ export class GameManager {
     };
 
     this.enemyManager.onPlayerHit = () => {
+      if (this.playerShip.shieldActive) {
+        this.uiManager.addLog('▸ SHIELD ENERGY DEFLECTED BLASTER FIRE', 'normal');
+        if (this.audioManager) this.audioManager.playUIHover();
+        return;
+      }
       this.uiManager.triggerDamageFlash();
 
       // Trigger chromatic aberration via CSS class on main container
@@ -704,9 +716,9 @@ export class GameManager {
       // Minute 0 to 1:15 - Keep sky black
       currentSkyColor.copy(colorBlack);
       this.lightningFlashTimer = 0;
-    } else if (time < 135) {
-      // Minute 1:15 to 2:15 - Transition to blue and trigger slight lightning
-      const u = (time - 75) / 60;
+    } else if (time < 150) {
+      // Minute 1:15 to 2:30 - Transition to blue and trigger slight lightning (Delayed by 15s)
+      const u = (time - 75) / 75;
       currentSkyColor.lerpColors(colorBlack, colorBlue, u);
 
       if (time > this.nextLightningTime) {
@@ -715,8 +727,8 @@ export class GameManager {
         this._triggerLightningStrike();
       }
     } else {
-      // Minute 2:15+ - Transition to red/orange/yellow and trigger extreme lightning
-      const u = Math.min(1.0, (time - 135) / 60);
+      // Minute 2:30+ - Transition to red/orange/yellow and trigger extreme lightning
+      const u = Math.min(1.0, (time - 150) / 60);
       currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
 
       if (time > this.nextLightningTime) {
@@ -760,6 +772,57 @@ export class GameManager {
     this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
     this.skyGroup.position.copy(this.playerShip.camera.position);
 
+    // Update active power-ups
+    if (this.powerUpManager) {
+      this.powerUpManager.update(actualDelta);
+
+      // Check distance to pick up active items
+      const pPos = this.playerShip.camera.position;
+      for (const item of this.powerUpManager.pool) {
+        if (!item.active) continue;
+        const dist = pPos.distanceTo(item.group.position);
+        if (dist < 60) {
+          // Play click/pickup sound
+          if (this.audioManager) {
+            this.audioManager.playUIHover();
+            setTimeout(() => this.audioManager.playUIClick(), 60);
+          }
+
+          // Apply effects
+          if (item.type === 'HULL') {
+            this.playerShip.hp = Math.min(this.playerShip.maxHp, this.playerShip.hp + 30);
+            this.uiManager.addLog('▸ SALVAGE: HULL INTEGRITY +30%', 'normal');
+          } else if (item.type === 'SHIELD') {
+            this.activePowerUp = 'SHIELD';
+            this.powerUpTimeRemaining = 10.0;
+            this.playerShip.shieldActive = true;
+            this.playerShip.infiniteEnginesActive = false; // Override engine active
+            this.uiManager.addLog('▸ DEFLECTOR SHIELDS ACTIVATED (10S)', 'warning');
+          } else if (item.type === 'ENGINES') {
+            this.activePowerUp = 'ENGINES';
+            this.powerUpTimeRemaining = 10.0;
+            this.playerShip.infiniteEnginesActive = true;
+            this.playerShip.shieldActive = false; // Override shield active
+            this.uiManager.addLog('▸ OVERDRIVE: INFINITE THRUST COMMITTED (10S)', 'warning');
+          }
+
+          this.powerUpManager.collect(item);
+        }
+      }
+    }
+
+    // Active power-up countdown timer
+    if (this.activePowerUp && this.powerUpTimeRemaining > 0) {
+      this.powerUpTimeRemaining -= actualDelta;
+      if (this.powerUpTimeRemaining <= 0) {
+        this.powerUpTimeRemaining = 0;
+        this.playerShip.infiniteEnginesActive = false;
+        this.playerShip.shieldActive = false;
+        this.uiManager.addLog('▸ NOTICE: OVERDRIVE BUFFER DRAINED', 'normal');
+        this.activePowerUp = null;
+      }
+    }
+
     this.enemyManager.update(actualDelta);
     const weaponInput = this.playerShip.isStalled ? {
       isFiring: () => false,
@@ -787,9 +850,12 @@ export class GameManager {
       this.state,
       this.weaponSystem.getChargeState(),
       this.camera,
-      this.radarJammedTimer > 0
+      this.radarJammedTimer > 0,
+      this.activePowerUp,
+      this.powerUpTimeRemaining
     );
-    this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies(), this.weaponSystem.lockedEnemy);
+    const activePowerUps = this.powerUpManager ? this.powerUpManager.pool.filter(item => item.active) : [];
+    this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies(), this.weaponSystem.lockedEnemy, activePowerUps);
 
     this.inputController.clearDeltas();
 
@@ -805,6 +871,13 @@ export class GameManager {
       if (!enemy.active || enemy.dying) continue;
       const dist = playerPos.distanceTo(enemy.mesh.position);
       if (dist < 12) {
+        if (this.playerShip.shieldActive) {
+          this.uiManager.addLog('▸ SHIELD DEFLECTED ENEMY COLLISION', 'normal');
+          if (this.audioManager) this.audioManager.playExplosion(enemy.mesh.position);
+          this.enemyManager.killEnemy(enemy, false);
+          continue;
+        }
+
         this.uiManager.triggerDamageFlash();
 
         // Trigger chromatic aberration via CSS class on main container
@@ -1064,7 +1137,7 @@ export class GameManager {
       opacity: 0.85
     });
 
-    const bodyGeom = new THREE.CylinderGeometry(1.2, 0.4, 18, 6);
+    const bodyGeom = new THREE.CylinderGeometry(1.2, 0.4, 28, 6);
     bodyGeom.rotateX(Math.PI / 2);
     const body = new THREE.Mesh(bodyGeom, mat);
     group.add(body);
@@ -1105,7 +1178,7 @@ export class GameManager {
     const engGeom = new THREE.CylinderGeometry(0.8, 0.8, 4, 6);
     engGeom.rotateX(Math.PI / 2);
     const eng = new THREE.Mesh(engGeom, mat);
-    eng.position.set(0, 0, -8);
+    eng.position.set(0, 0, -13);
     group.add(eng);
 
     group.scale.set(1.5, 1.5, 1.5);
@@ -1154,6 +1227,9 @@ export class GameManager {
     this.enemyManager.reset();
     this.weaponSystem.reset();
     this.particleSystem.reset();
+    if (this.powerUpManager) this.powerUpManager.reset();
+    this.activePowerUp = null;
+    this.powerUpTimeRemaining = 0.0;
     if (this.speedLines) this.speedLines.opacity = 0;
     this.audioManager.reset();
     this.uiManager.reset();

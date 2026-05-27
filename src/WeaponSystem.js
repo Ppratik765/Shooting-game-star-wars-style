@@ -17,6 +17,7 @@ export class WeaponSystem {
     this.chargePerShot = 1.2;
     this.chargeRegenRate = 14;
     this.chargeDepleted = false;
+    this.weaponOverdriveActive = false;
 
     // Targeting system
     this.projectileSpeed = 1100;  // Slightly slower than hit-scan
@@ -203,11 +204,14 @@ export class WeaponSystem {
   }
 
   fire(playerVelocity) {
+    const isOverdrive = this.weaponOverdriveActive;
+    const requiredProjectiles = isOverdrive ? 4 : 2;
+
     const toSpawn = [];
-    for (let i = 0; i < this.poolSize && toSpawn.length < 2; i++) {
+    for (let i = 0; i < this.poolSize && toSpawn.length < requiredProjectiles; i++) {
       if (!this.pool[i].active) toSpawn.push(this.pool[i]);
     }
-    if (toSpawn.length < 2) return;
+    if (toSpawn.length < requiredProjectiles) return;
 
     // Play laser sound effect
     if (this.audioManager) this.audioManager.playLaser();
@@ -222,23 +226,38 @@ export class WeaponSystem {
 
     const near = 5.0;
     const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-    const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
     const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
     const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
     const aspect = window.innerWidth / window.innerHeight;
     const halfW = Math.tan(fovRad * 0.5) * aspect * near;
 
-    const originL = this.camera.position.clone()
-      .addScaledVector(camFwd, near)
-      .addScaledVector(camRight, -halfW * 0.95);
+    if (isOverdrive) {
+      // Fire 4 spread lasers (X offset: -8, -4, 4, 8)
+      // Since halfW is a proportional coordinate, let's map these offsets scaled appropriately
+      const scale = halfW * 0.45;
+      const origin1 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 2.0);
+      const origin2 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 1.0);
+      const origin3 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, scale * 1.0);
+      const origin4 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, scale * 2.0);
 
-    const originR = this.camera.position.clone()
-      .addScaledVector(camFwd, near)
-      .addScaledVector(camRight, halfW * 0.95);
+      this._activateProjectile(toSpawn[0], origin1, laserVel, aimDir);
+      this._activateProjectile(toSpawn[1], origin2, laserVel, aimDir);
+      this._activateProjectile(toSpawn[2], origin3, laserVel, aimDir);
+      this._activateProjectile(toSpawn[3], origin4, laserVel, aimDir);
+    } else {
+      // Standard L/R 2 lasers
+      const originL = this.camera.position.clone()
+        .addScaledVector(camFwd, near)
+        .addScaledVector(camRight, -halfW * 0.95);
 
-    this._activateProjectile(toSpawn[0], originL, laserVel, aimDir);
-    this._activateProjectile(toSpawn[1], originR, laserVel, aimDir);
+      const originR = this.camera.position.clone()
+        .addScaledVector(camFwd, near)
+        .addScaledVector(camRight, halfW * 0.95);
+
+      this._activateProjectile(toSpawn[0], originL, laserVel, aimDir);
+      this._activateProjectile(toSpawn[1], originR, laserVel, aimDir);
+    }
   }
 
   _activateProjectile(p, origin, velocity, direction) {
@@ -315,6 +334,7 @@ export class WeaponSystem {
     this.chargeDepleted = false;
     this.lastFireTime = 0;
     this.lockedEnemy = null;
+    this.weaponOverdriveActive = false;
     for (const p of this.pool) this._deactivate(p);
   }
 

@@ -7,6 +7,7 @@ export class EnemyManager {
     this.playerShip = playerShip;
     this.terrain = null;
     this.isMobile = isMobile;
+    this.powerUpManager = null;
 
     this.enemies = [];
     this.maxEnemies = isMobile ? 12 : 20;
@@ -476,7 +477,9 @@ export class EnemyManager {
       if (dist < 12) {
         p.active = false;
         p.mesh.visible = false;
-        this.playerShip.hp -= 8;
+        if (!this.playerShip.shieldActive) {
+          this.playerShip.hp -= 8;
+        }
         if (this.onPlayerHit) this.onPlayerHit();
       }
     }
@@ -637,6 +640,11 @@ export class EnemyManager {
 
     // Place diamond death marker
     this._placeDeathMarker(crashPos);
+
+    // Salvage check: 30% chance to spawn a power-up on ground collision
+    if (this.powerUpManager && Math.random() < 0.30) {
+      this.powerUpManager.spawnPowerUp(crashPos.x, crashPos.z, crashPos.y);
+    }
   }
 
   _placeDeathMarker(position) {

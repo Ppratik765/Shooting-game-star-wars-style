@@ -215,10 +215,20 @@
     <!-- Boost Vignette (now BLUE) -->
     <div id="boost-vignette"></div>
 
-
+    <!-- Shield bubble overlay (faint blue bubble) -->
+    <div id="shield-bubble"></div>
 
     <!-- Crack Overlay for low hull -->
     <canvas id="crack-overlay"></canvas>
+
+    <!-- Power-Up UI Timer (SVG Circular Progress Ring) -->
+    <div id="powerup-timer-container" style="display: none;">
+      <svg width="54" height="54" viewBox="0 0 54 54">
+        <circle class="ring-bg" cx="27" cy="27" r="23" />
+        <circle id="powerup-ring-fill" class="ring-fill" cx="27" cy="27" r="23" />
+      </svg>
+      <div id="powerup-timer-label">10.0s</div>
+    </div>
 
     <!-- CRT Overlay -->
     <div id="crt-scanlines"></div>
@@ -243,7 +253,40 @@
           <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
         </div>
       </div>
-      <button id="retry-button">[ INITIATE CLONING SEQUENCE — RETRY ]</button>
+      
+      <div style="display: flex; gap: 15px; width: 100%; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
+        <button id="retry-button" style="margin: 0; flex: 1 1 auto; min-width: 140px;">[ RETRY ]</button>
+        <button id="leaderboard-btn" style="margin: 0; flex: 1 1 auto; min-width: 240px;">[ VIEW LEADERBOARD ]</button>
+      </div>
+
+      <!-- Leaderboard submission form (Personal Best) -->
+      <div id="leaderboard-submit-container" style="display: none;">
+        <div style="color: #00ffaa; font-size: 24px; margin-bottom: 12px; letter-spacing: 2px;">★ NEW GLOBAL HIGHSCORE ★</div>
+        <input type="text" id="leaderboard-alias" placeholder="ENTER CALLSIGN" maxlength="15" autofocus>
+        <button id="btn-submit-score">[ UPLOAD DATA ]</button>
+      </div>
+
+      <!-- Scrollable Leaderboard Table -->
+      <div id="leaderboard-display-container" style="display: none;">
+        <div style="color: #00ffaa; font-size: 28px; letter-spacing: 3px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 10px #00ffaa;">[ GLOBAL SQUADRON RANKS ]</div>
+        <div class="leaderboard-table-wrapper">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>PILOT</th>
+                <th>SYSTEM</th>
+                <th>KILLS</th>
+                <th>TIME</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-rows">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        <button id="btn-close-leaderboard" style="margin-top: 12px;">[ BACK ]</button>
+      </div>
     </div>
   </div>
 
