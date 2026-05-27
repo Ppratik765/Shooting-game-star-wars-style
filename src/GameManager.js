@@ -281,6 +281,11 @@ export class GameManager {
         this.uiManager.startGame();
         this.state.timeSurvived = 0; // reset clock
 
+        // Auto-calibrate gyroscope on mobile when starting
+        if (this.isMobile && this.inputController) {
+          this.inputController.calibrateGyro();
+        }
+
         // Remove parallax listener
         if (this._parallaxHandler) {
           document.removeEventListener('mousemove', this._parallaxHandler);
@@ -1153,6 +1158,11 @@ export class GameManager {
     this.audioManager.reset();
     this.uiManager.reset();
     this.uiManager.addLog('CLONE ACTIVATED — SYSTEMS ONLINE', 'normal');
+
+    // Auto-calibrate gyroscope on mobile when retrying/resetting
+    if (this.isMobile && this.inputController) {
+      this.inputController.calibrateGyro();
+    }
 
     const radar = document.getElementById('radar-container');
     if (radar) {
