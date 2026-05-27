@@ -625,8 +625,8 @@ export class UIManager {
 
     // Apply auto-aim magnetism:
     // On mobile, magnetically pull the actual controller's aim coordinates towards closest target
-    const threshold = this.isMobile ? 250 : 130;
-    const pullStrength = this.isMobile ? 0.40 : 0.16;
+    const threshold = this.isMobile ? 200 : 130;
+    const pullStrength = this.isMobile ? 0.25 : 0.16;
 
     if (closestEnemyProj && minDistance < threshold) {
       if (this.isMobile && this.inputController) {

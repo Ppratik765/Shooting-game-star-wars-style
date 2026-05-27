@@ -157,7 +157,11 @@ export class ParticleSystem {
 
   // === SHOCKWAVE: expanding yellow ring that follows terrain ===
   spawnShockwave(position, terrain) {
-    const config = [
+    const config = this.isMobile ? [
+      { maxRadius: 150, maxAge: 1.5, opacity: 1.0 },
+      { maxRadius: 240, maxAge: 2.2, opacity: 0.95 },
+      { maxRadius: 330, maxAge: 2.9, opacity: 0.9 }
+    ] : [
       { maxRadius: 150, maxAge: 1.5, opacity: 0.9 },
       { maxRadius: 240, maxAge: 2.2, opacity: 0.7 },
       { maxRadius: 330, maxAge: 2.9, opacity: 0.5 }
