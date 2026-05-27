@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/style.css" />
   <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+
 </head>
 
 <body>
@@ -43,7 +44,94 @@
     </button>
 
     <div id="settings-menu">
-      <div id="settings-content">
+      <!-- Desktop tactical settings menu -->
+      <div id="settings-content-desktop" class="desktop-settings-only">
+        <div id="settings-title">TACTICAL SETTINGS</div>
+        <div class="settings-divider"></div>
+        
+        <div class="settings-group">
+          <div class="settings-group-title">[ FLIGHT OPTIONS ]</div>
+          <div class="settings-row">
+            <label>Mouse Sensitivity</label>
+            <div class="slider-container">
+              <input type="range" id="setting-mouse-sensitivity" min="0.1" max="3.0" step="0.1" value="1.0" class="retro-slider">
+              <span id="value-mouse-sensitivity" class="slider-value">1.0</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Invert Flight Y-Axis</label>
+            <input type="checkbox" id="setting-invert-y" class="retro-checkbox">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ VISUAL AESTHETICS ]</div>
+          <div class="settings-row">
+            <label>CRT Scanlines</label>
+            <input type="checkbox" id="setting-scanlines" class="retro-checkbox">
+          </div>
+          <div class="settings-row">
+            <label>Screen Shake Intensity</label>
+            <div class="slider-container">
+              <input type="range" id="setting-shake" min="0" max="100" step="5" value="80" class="retro-slider">
+              <span id="value-shake" class="slider-value">80%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ AUDIO MIXER ]</div>
+          <div class="settings-row">
+            <label>Master Volume</label>
+            <div class="slider-container">
+              <input type="range" id="setting-master-volume" min="0" max="100" step="5" value="90" class="retro-slider">
+              <span id="value-master-volume" class="slider-value">90%</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Engine Cabin Hum</label>
+            <div class="slider-container">
+              <input type="range" id="setting-engine-hum" min="0" max="100" step="5" value="30" class="retro-slider">
+              <span id="value-engine-hum" class="slider-value">30%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ KEYBINDINGS ]</div>
+          <div class="keybind-grid">
+            <div class="keybind-item">
+              <span>Boost:</span>
+              <button id="bind-boost" class="keybind-btn">Shift</button>
+            </div>
+            <div class="keybind-item">
+              <span>Fire:</span>
+              <button id="bind-fire" class="keybind-btn">Space</button>
+            </div>
+            <div class="keybind-item">
+              <span>Pitch Down:</span>
+              <button id="bind-pitchDown" class="keybind-btn">W</button>
+            </div>
+            <div class="keybind-item">
+              <span>Pitch Up:</span>
+              <button id="bind-pitchUp" class="keybind-btn">S</button>
+            </div>
+            <div class="keybind-item">
+              <span>Roll Left:</span>
+              <button id="bind-rollLeft" class="keybind-btn">A</button>
+            </div>
+            <div class="keybind-item">
+              <span>Roll Right:</span>
+              <button id="bind-rollRight" class="keybind-btn">D</button>
+            </div>
+          </div>
+        </div>
+
+        <button id="save-button" class="settings-btn" style="width: 100%; margin-top: 15px;">[ SAVE & RETURN TO COCKPIT ]</button>
+      </div>
+
+      <!-- Mobile calibration settings menu -->
+      <div id="settings-content-mobile" class="mobile-settings-only">
         <div id="settings-title">TACTICAL SETTINGS</div>
         <div class="settings-divider"></div>
         <button id="calibrate-button" class="settings-btn">CALIBRATE SCREEN</button>
@@ -63,6 +151,7 @@
 
     <div id="compass-container">
       <div id="compass-strip">S · SW · W · NW · N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S · SW · W · NW ·
+        N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S · SW · W · NW ·
         N · NE · E · SE · S</div>
     </div>
 

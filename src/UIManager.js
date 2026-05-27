@@ -5,6 +5,9 @@ const SUN2_POS = new THREE.Vector3(-1300, 1820, 2080);
 
 export class UIManager {
   constructor() {
+    this.isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
+
     this.crosshair    = document.getElementById('crosshair');
     this.compassStrip = document.getElementById('compass-strip');
     this.damageFlash  = document.getElementById('damage-flash');
@@ -803,5 +806,153 @@ export class UIManager {
     if (this.crackCtx) {
       this.crackCtx.clearRect(0, 0, this.crackCanvas.width, this.crackCanvas.height);
     }
+  }
+
+  initSettings(inputController, audioManager, playerShip) {
+    this.inputController = inputController;
+    this.audioManager = audioManager;
+    this.playerShip = playerShip;
+
+    // Detect device type to show appropriate layout
+    const settingsMenu = document.getElementById('settings-menu');
+    if (settingsMenu) {
+      if (this.isMobile) {
+        settingsMenu.classList.add('mobile-device');
+        settingsMenu.classList.remove('desktop-device');
+      } else {
+        settingsMenu.classList.add('desktop-device');
+        settingsMenu.classList.remove('mobile-device');
+      }
+    }
+
+    if (this.isMobile) return; // Skip desktop UI initialization on mobile
+
+    // Load initial values to UI elements from settings
+    const sensInput = document.getElementById('setting-mouse-sensitivity');
+    const sensValText = document.getElementById('value-mouse-sensitivity');
+    if (sensInput && sensValText) {
+      sensInput.value = inputController.mouseSensitivity;
+      sensValText.textContent = inputController.mouseSensitivity.toFixed(1);
+      
+      sensInput.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        inputController.mouseSensitivity = val;
+        sensValText.textContent = val.toFixed(1);
+        localStorage.setItem('setting_mouse_sensitivity', val.toString());
+      });
+    }
+
+    const invertYInput = document.getElementById('setting-invert-y');
+    if (invertYInput) {
+      invertYInput.checked = inputController.invertY;
+      invertYInput.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        inputController.invertY = checked;
+        localStorage.setItem('setting_invert_y', checked ? 'true' : 'false');
+      });
+    }
+
+    const scanlinesInput = document.getElementById('setting-scanlines');
+    const crtScanlines = document.getElementById('crt-scanlines');
+    if (scanlinesInput) {
+      const scanlinesEnabled = localStorage.getItem('setting_scanlines') !== 'false';
+      scanlinesInput.checked = scanlinesEnabled;
+      if (crtScanlines) {
+        crtScanlines.style.display = scanlinesEnabled ? 'block' : 'none';
+      }
+
+      scanlinesInput.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        localStorage.setItem('setting_scanlines', checked ? 'true' : 'false');
+        if (crtScanlines) {
+          crtScanlines.style.display = checked ? 'block' : 'none';
+        }
+      });
+    }
+
+    const shakeInput = document.getElementById('setting-shake');
+    const shakeValText = document.getElementById('value-shake');
+    if (shakeInput && shakeValText) {
+      const savedShake = parseInt(localStorage.getItem('setting_shake') || '80');
+      shakeInput.value = savedShake;
+      shakeValText.textContent = savedShake + '%';
+      playerShip.shakeIntensityScale = savedShake / 100;
+
+      shakeInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        shakeValText.textContent = val + '%';
+        playerShip.shakeIntensityScale = val / 100;
+        localStorage.setItem('setting_shake', val.toString());
+      });
+    }
+
+    const masterVolInput = document.getElementById('setting-master-volume');
+    const masterVolValText = document.getElementById('value-master-volume');
+    if (masterVolInput && masterVolValText) {
+      const savedMasterVol = parseInt(localStorage.getItem('setting_master_volume') || '90');
+      masterVolInput.value = savedMasterVol;
+      masterVolValText.textContent = savedMasterVol + '%';
+      audioManager.setMasterVolumeScale(savedMasterVol / 100);
+
+      masterVolInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        masterVolValText.textContent = val + '%';
+        audioManager.setMasterVolumeScale(val / 100);
+        localStorage.setItem('setting_master_volume', val.toString());
+      });
+    }
+
+    const engineHumInput = document.getElementById('setting-engine-hum');
+    const engineHumValText = document.getElementById('value-engine-hum');
+    if (engineHumInput && engineHumValText) {
+      const savedEngineHum = parseInt(localStorage.getItem('setting_engine_hum') || '30');
+      engineHumInput.value = savedEngineHum;
+      engineHumValText.textContent = savedEngineHum + '%';
+      audioManager.setEngineVolumeScale(savedEngineHum / 100);
+
+      engineHumInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        engineHumValText.textContent = val + '%';
+        audioManager.setEngineVolumeScale(val / 100);
+        localStorage.setItem('setting_engine_hum', val.toString());
+      });
+    }
+
+    // Keybindings Buttons Setup
+    const keyActions = ['boost', 'fire', 'pitchDown', 'pitchUp', 'rollLeft', 'rollRight'];
+    
+    const formatKeyForDisplay = (key) => {
+      if (key === ' ') return 'Space';
+      if (key.length === 1) return key.toUpperCase();
+      return key;
+    };
+
+    keyActions.forEach(action => {
+      const btn = document.getElementById(`bind-${action}`);
+      if (btn) {
+        btn.textContent = formatKeyForDisplay(inputController.keymap[action]);
+        
+        btn.addEventListener('click', () => {
+          if (audioManager) audioManager.playUIClick();
+
+          // Set all buttons to inactive first, to prevent multiple waiting states
+          keyActions.forEach(act => {
+            const b = document.getElementById(`bind-${act}`);
+            if (b) {
+              b.classList.remove('waiting');
+              b.textContent = formatKeyForDisplay(inputController.keymap[act]);
+            }
+          });
+
+          btn.classList.add('waiting');
+          btn.textContent = '[ PRESS KEY ]';
+
+          inputController.startRebinding(action, (newKey) => {
+            btn.classList.remove('waiting');
+            btn.textContent = formatKeyForDisplay(newKey);
+          });
+        });
+      }
+    });
   }
 }

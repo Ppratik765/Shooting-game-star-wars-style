@@ -91,6 +91,7 @@ export class GameManager {
     this.particleSystem = new ParticleSystem(this.scene, isMobile);
     this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
     this.audioManager = new AudioManager();
+    this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
     this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
 
@@ -202,6 +203,35 @@ export class GameManager {
         settingsMenu.style.display = 'none';
       });
     }
+
+    const saveBtn = document.getElementById('save-button');
+    if (saveBtn && settingsMenu) {
+      saveBtn.addEventListener('click', () => {
+        this.isPaused = false;
+        settingsMenu.style.display = 'none';
+        if (this.audioManager) this.audioManager.playUIClick();
+      });
+    }
+
+    // Toggle settings on Escape key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!this.isStarted || this.isDead) return;
+        if (this.inputController && this.inputController.isRebinding) return;
+
+        if (settingsMenu) {
+          if (this.isPaused) {
+            this.isPaused = false;
+            settingsMenu.style.display = 'none';
+            if (this.audioManager) this.audioManager.playUIClick();
+          } else {
+            this.isPaused = true;
+            settingsMenu.style.display = 'flex';
+            if (this.audioManager) this.audioManager.playUIClick();
+          }
+        }
+      }
+    });
 
     if (calibrateBtn) {
       calibrateBtn.addEventListener('click', () => {

@@ -1,10 +1,31 @@
 export class InputController {
   constructor() {
-    this.keys = {
-      w: false, a: false, s: false, d: false,
-      ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false,
-      Shift: false, ' ': false, Control: false
+    this.keys = {};
+
+    // Load settings from localStorage
+    this.mouseSensitivity = parseFloat(localStorage.getItem('setting_mouse_sensitivity') || '1.0');
+    this.invertY = localStorage.getItem('setting_invert_y') === 'true';
+
+    this.keymap = {
+      boost: 'Shift',
+      fire: ' ',
+      pitchDown: 'w',
+      pitchUp: 's',
+      rollLeft: 'a',
+      rollRight: 'd'
     };
+
+    const savedKeymap = localStorage.getItem('setting_keymap');
+    if (savedKeymap) {
+      try {
+        const parsed = JSON.parse(savedKeymap);
+        Object.assign(this.keymap, parsed);
+      } catch (e) {
+        console.warn('Failed to parse keymap settings', e);
+      }
+    }
+
+    this.isRebinding = false;
 
     this.mouse = {
       x: window.innerWidth / 2,
@@ -281,17 +302,14 @@ export class InputController {
     window.addEventListener('contextmenu', e => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
+      if (this.isRebinding) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (Object.prototype.hasOwnProperty.call(this.keys, k)) {
-        this.keys[k] = true;
-      }
+      this.keys[k] = true;
     });
 
     window.addEventListener('keyup', (e) => {
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (Object.prototype.hasOwnProperty.call(this.keys, k)) {
-        this.keys[k] = false;
-      }
+      this.keys[k] = false;
     });
 
     window.addEventListener('blur', () => {
@@ -383,8 +401,9 @@ export class InputController {
     } else {
       // Desktop: cap and transfer accumulated raw mouse delta
       const cap = this._maxDeltaPerFrame;
-      this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX));
-      this.mouse.movementY = Math.max(-cap, Math.min(cap, this._frameMovementY));
+      const ySign = this.invertY ? -1 : 1;
+      this.mouse.movementX = Math.max(-cap, Math.min(cap, this._frameMovementX)) * this.mouseSensitivity;
+      this.mouse.movementY = Math.max(-cap, Math.min(cap, this._frameMovementY)) * this.mouseSensitivity * ySign;
       this._frameMovementX = 0;
       this._frameMovementY = 0;
     }
@@ -399,14 +418,53 @@ export class InputController {
     this.gyroCalibrated = false;
   }
 
+  startRebinding(action, onBindCallback) {
+    this.isRebinding = true;
+
+    const handleKey = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+      this.keymap[action] = k;
+      localStorage.setItem('setting_keymap', JSON.stringify(this.keymap));
+
+      this.isRebinding = false;
+      window.removeEventListener('keydown', handleKey, true);
+
+      if (onBindCallback) onBindCallback(k);
+    };
+
+    window.addEventListener('keydown', handleKey, true);
+  }
+
   // On mobile, keyboard keys are always false; gyro flags drive movement instead.
   // The ship always has a base throttle regardless — see PlayerShip._handleInput.
-  isForward() { return this.keys.w || this.keys.ArrowUp || (this.isMobile && this.mobileForward); }
-  isBackward() { return this.keys.s || this.keys.ArrowDown || (this.isMobile && this.mobileBackward); }
-  isLeft() { return this.keys.a || this.keys.ArrowLeft || (this.isMobile && this.mobileLeft); }
-  isRight() { return this.keys.d || this.keys.ArrowRight || (this.isMobile && this.mobileRight); }
-  isBoosting() { return this.keys.Shift || this.mobileBoost; }
-  isFiring() { return this.keys[' '] || this.mouse.isDown || this.mobileShoot; }
+  isForward() {
+    const bind = this.keymap.pitchDown;
+    return this.keys[bind] || this.keys.ArrowUp || (this.isMobile && this.mobileForward);
+  }
+  isBackward() {
+    const bind = this.keymap.pitchUp;
+    return this.keys[bind] || this.keys.ArrowDown || (this.isMobile && this.mobileBackward);
+  }
+  isLeft() {
+    const bind = this.keymap.rollLeft;
+    return this.keys[bind] || this.keys.ArrowLeft || (this.isMobile && this.mobileLeft);
+  }
+  isRight() {
+    const bind = this.keymap.rollRight;
+    return this.keys[bind] || this.keys.ArrowRight || (this.isMobile && this.mobileRight);
+  }
+  isBoosting() {
+    const bind = this.keymap.boost;
+    return this.keys[bind] || this.mobileBoost;
+  }
+  isFiring() {
+    const bind = this.keymap.fire;
+    return this.keys[bind] || this.mouse.isDown || this.mobileShoot;
+  }
 
   isLocking() {
     if (this.mouse.clickPulse) { this.mouse.clickPulse = false; return true; }

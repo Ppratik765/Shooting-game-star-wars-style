@@ -62,11 +62,12 @@ export class PlayerShip {
     this.shakeTimer = 0;
     this.shakeDuration = 0.22;
     this.shakeIntensity = 0.0;
+    this.shakeIntensityScale = parseFloat(localStorage.getItem('setting_shake') || '80') / 100;
   }
 
   triggerShake(intensity = 1.0) {
     this.shakeTimer = this.shakeDuration;
-    this.shakeIntensity = intensity;
+    this.shakeIntensity = intensity * this.shakeIntensityScale;
   }
 
   die() {

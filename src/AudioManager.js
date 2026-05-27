@@ -27,6 +27,9 @@ export class AudioManager {
     this.compressor = null;
     this.masterGain = null;
 
+    this.masterVolumeScale = parseFloat(localStorage.getItem('setting_master_volume') || '90') / 100;
+    this.engineVolumeScale = parseFloat(localStorage.getItem('setting_engine_hum') || '30') / 100;
+
     // Decoded buffers
     this.buffers = {
       engine: null,
@@ -96,7 +99,7 @@ export class AudioManager {
       this.compressor.connect(this.ctx.destination);
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.8; // Master volume
+      this.masterGain.gain.value = this.masterVolumeScale; // Master volume
       this.masterGain.connect(this.compressor);
 
       // Set up engine gain node
@@ -178,7 +181,7 @@ export class AudioManager {
         this.compressor.connect(this.ctx.destination);
 
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.8;
+        this.masterGain.gain.value = this.masterVolumeScale;
         this.masterGain.connect(this.compressor);
 
         this.engineGain = this.ctx.createGain();
@@ -243,7 +246,7 @@ export class AudioManager {
 
     // Map speed 0–400 → volume 0.55–0.85 (Increased player engine volume)
     const normalizedSpeed = Math.max(0, Math.min(1, speed / 400));
-    const targetVol = 0.55 + normalizedSpeed * 0.3;
+    const targetVol = (0.55 + normalizedSpeed * 0.3) * this.engineVolumeScale;
     this.engineGain.gain.value += (targetVol - this.engineGain.gain.value) * 0.08;
   }
 
@@ -580,6 +583,17 @@ export class AudioManager {
     gain.connect(this.masterGain);
 
     source.start(0);
+  }
+
+  setMasterVolumeScale(vol) {
+    this.masterVolumeScale = vol;
+    if (this.masterGain) {
+      this.masterGain.gain.value = vol;
+    }
+  }
+
+  setEngineVolumeScale(vol) {
+    this.engineVolumeScale = vol;
   }
 
   // ─── Cleanup ───────────────────────────────────────────────────────
