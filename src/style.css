@@ -556,6 +556,7 @@ html, body {
 
 /* === Mobile layout adjustments === */
 @media (max-width: 1024px) {
+  #watermark { right: 15px !important; }
   #hud-top-container { top: 45px; left: 8px; right: 8px; }
   #activity-feed { width: 160px; height: 80px; font-size: 11px; }
   #stats-container { width: 110px; font-size: 13px; }

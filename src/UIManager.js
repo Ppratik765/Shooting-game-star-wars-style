@@ -472,8 +472,12 @@ export class UIManager {
       });
     }
 
-    // Crosshair lerp
-    this.currentCrosshairPos.lerp(this.targetCrosshairPos, 0.12);
+    // Crosshair lerp - instantaneous on mobile, lerped on desktop
+    if (this.isMobile) {
+      this.currentCrosshairPos.copy(this.targetCrosshairPos);
+    } else {
+      this.currentCrosshairPos.lerp(this.targetCrosshairPos, 0.12);
+    }
     const dx = this.currentCrosshairPos.x - window.innerWidth / 2;
     const dy = this.currentCrosshairPos.y - window.innerHeight / 2;
     this.crosshair.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
@@ -620,16 +624,19 @@ export class UIManager {
     }
 
     // Apply auto-aim magnetism:
-    // If we have a close target in screen space, pull the targetCrosshairPos slightly towards it
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-      || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
-
-    const threshold = isMobile ? 220 : 130;
-    const pullStrength = isMobile ? 0.35 : 0.16; // much stronger magnetism on mobile!
+    // On mobile, magnetically pull the actual controller's aim coordinates towards closest target
+    const threshold = this.isMobile ? 250 : 130;
+    const pullStrength = this.isMobile ? 0.40 : 0.16;
 
     if (closestEnemyProj && minDistance < threshold) {
-      this.targetCrosshairPos.x = THREE.MathUtils.lerp(this.targetCrosshairPos.x, closestEnemyProj.x, pullStrength);
-      this.targetCrosshairPos.y = THREE.MathUtils.lerp(this.targetCrosshairPos.y, closestEnemyProj.y, pullStrength);
+      if (this.isMobile && this.inputController) {
+        this.inputController.mouse.x = THREE.MathUtils.lerp(this.inputController.mouse.x, closestEnemyProj.x, pullStrength);
+        this.inputController.mouse.y = THREE.MathUtils.lerp(this.inputController.mouse.y, closestEnemyProj.y, pullStrength);
+        this.targetCrosshairPos.copy(this.inputController.mouse);
+      } else {
+        this.targetCrosshairPos.x = THREE.MathUtils.lerp(this.targetCrosshairPos.x, closestEnemyProj.x, pullStrength);
+        this.targetCrosshairPos.y = THREE.MathUtils.lerp(this.targetCrosshairPos.y, closestEnemyProj.y, pullStrength);
+      }
     }
 
     // If jammed, generate static noise blips
