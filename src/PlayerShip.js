@@ -65,6 +65,11 @@ export class PlayerShip {
     this.shakeDuration = 0.22;
     this.shakeIntensity = 0.0;
     this.shakeIntensityScale = parseFloat(localStorage.getItem('setting_shake') || '80') / 100;
+
+    // Reusable temp structures to avoid garbage collection
+    this._tempEuler = new THREE.Euler();
+    this._tempV1 = new THREE.Vector3();
+    this._tempV2 = new THREE.Vector3();
   }
 
   triggerShake(intensity = 1.0) {
@@ -86,9 +91,9 @@ export class PlayerShip {
       this.roll += 6.0 * speedMult * deltaTime;
       this.velocity.y -= 800 * speedMult * deltaTime;
 
-      const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
-      const forward = new THREE.Vector3(0, 0, -1).applyEuler(euler);
-      const targetVelocity = forward.clone().multiplyScalar(this.throttle * (this.dieFromHigh ? 3.0 : 1.5));
+      const euler = this._tempEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+      const forward = this._tempV1.set(0, 0, -1).applyEuler(euler);
+      const targetVelocity = this._tempV2.copy(forward).multiplyScalar(this.throttle * (this.dieFromHigh ? 3.0 : 1.5));
       this.velocity.lerp(targetVelocity, 3.5 * deltaTime);
 
       this.camera.position.addScaledVector(this.velocity, deltaTime);
@@ -255,9 +260,9 @@ export class PlayerShip {
   }
 
   _applyPhysics(deltaTime) {
-    const euler = new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ');
-    const forward = new THREE.Vector3(0, 0, -1).applyEuler(euler);
-    const targetVelocity = forward.clone().multiplyScalar(this.throttle);
+    const euler = this._tempEuler.set(this.pitch, this.yaw, this.roll, 'YXZ');
+    const forward = this._tempV1.set(0, 0, -1).applyEuler(euler);
+    const targetVelocity = this._tempV2.copy(forward).multiplyScalar(this.throttle);
     this.velocity.lerp(targetVelocity, 6.0 * deltaTime);
     this.velocity.y += this.gravity * deltaTime;
     this.camera.position.addScaledVector(this.velocity, deltaTime);

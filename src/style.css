@@ -828,10 +828,10 @@ html, body {
 .score-card {
   border: 1px solid rgba(0, 255, 170, 0.4);
   background: rgba(0, 10, 5, 0.75);
-  padding: 20px 30px;
+  padding: 15px 25px;
   border-radius: 6px;
   box-shadow: 0 0 25px rgba(0, 255, 170, 0.15), inset 0 0 15px rgba(0, 255, 170, 0.05);
-  max-width: 440px; margin: 15px auto;
+  max-width: 680px; margin: 10px auto;
   text-align: center;
 }
 .score-main {
@@ -867,13 +867,29 @@ html, body {
 /* === Kill Tally Marks === */
 #go-tally {
   margin-top: 12px;
-  font-size: 22px;
+  font-size: 20px;
   color: rgba(0, 255, 170, 0.7);
   text-shadow: 0 0 6px rgba(0, 255, 170, 0.3);
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   font-family: 'VT323', monospace;
-  word-spacing: 8px;
-  line-height: 1.6;
+  word-spacing: 6px;
+  line-height: 1.4;
+  max-height: 110px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+#go-tally::-webkit-scrollbar {
+  width: 6px;
+}
+#go-tally::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+#go-tally::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 170, 0.4);
+  border-radius: 3px;
+}
+#go-tally::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 170, 0.7);
 }
 .tally-group {
   position: relative;

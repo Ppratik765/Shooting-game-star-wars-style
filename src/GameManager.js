@@ -85,6 +85,11 @@ export class GameManager {
     this.inputController = new InputController();
     this.playerShip = new PlayerShip(this.camera);
 
+    // Reusable temp structures to avoid garbage collection
+    this._tempV1 = new THREE.Vector3();
+    this._tempV2 = new THREE.Vector3();
+    this._zeroVector = new THREE.Vector3(0, 0, 0);
+
     this.introStartPos.copy(this.camera.position);
     this.introStartYaw = this.playerShip.yaw;
 
@@ -780,8 +785,8 @@ export class GameManager {
       const pPos = this.playerShip.camera.position;
       for (const item of this.powerUpManager.pool) {
         if (!item.active) continue;
-        const dist = pPos.distanceTo(item.group.position);
-        if (dist < 60) {
+        const distSq = pPos.distanceToSquared(item.group.position);
+        if (distSq < 3600) {
           // Play click/pickup sound
           if (this.audioManager) {
             this.audioManager.playUIHover();
@@ -823,7 +828,7 @@ export class GameManager {
       }
     }
 
-    this.enemyManager.update(actualDelta);
+    this.enemyManager.update(actualDelta, this.state.timeSurvived);
     const weaponInput = this.playerShip.isStalled ? {
       isFiring: () => false,
       isLocking: () => false
@@ -869,8 +874,8 @@ export class GameManager {
     for (let i = 0; i < enemies.length; i++) {
       const enemy = enemies[i];
       if (!enemy.active || enemy.dying) continue;
-      const dist = playerPos.distanceTo(enemy.mesh.position);
-      if (dist < 12) {
+      const distSq = playerPos.distanceToSquared(enemy.mesh.position);
+      if (distSq < 144) {
         if (this.playerShip.shieldActive) {
           this.uiManager.addLog('▸ SHIELD DEFLECTED ENEMY COLLISION', 'normal');
           if (this.audioManager) this.audioManager.playExplosion(enemy.mesh.position);
@@ -960,6 +965,7 @@ export class GameManager {
 
   _updateDeathSequence(deltaTime) {
     if (this.deathSequenceState === 'final_freeze') {
+      this.particleSystem.update(deltaTime, this.terrain);
       return;
     }
 
@@ -1040,27 +1046,10 @@ export class GameManager {
       }
     }
 
-    // 2. Eject escape pod — gravity & particles slowed down
+    // 2. Eject escape pod — gravity slowed down (green particles removed)
     if (this.ejectPod) {
       this.ejectPodVelocity.y -= 15 * deltaTime; // gravity reduced
       this.ejectPod.position.addScaledVector(this.ejectPodVelocity, deltaTime);
-
-      // Ejection trail particles — slowed down
-      for (let i = 0; i < 3; i++) {
-        const p = this.particleSystem._getFree();
-        if (p) {
-          p.active = true;
-          p.position.copy(this.ejectPod.position);
-          p.velocity.set(
-            (Math.random() - 0.5) * 10,
-            -45 - Math.random() * 20,
-            (Math.random() - 0.5) * 10
-          ).applyQuaternion(this.ejectPod.quaternion);
-          p.age = 0;
-          p.life = 0.4 + Math.random() * 0.4;
-          p.color.setHex(0x00ffaa); // cyan sparks
-        }
-      }
     }
 
     // 3. Camera tracks escape pod and looks at X-wing
@@ -1085,11 +1074,11 @@ export class GameManager {
     this.particleSystem.update(deltaTime, this.terrain);
 
     // Keep enemies flying, shooting, and dying during death sequence
-    this.enemyManager.update(deltaTime);
+    this.enemyManager.update(deltaTime, this.state.timeSurvived);
 
     // Update active laser projectiles so they continue moving after death
     const mockInput = { isFiring: () => false };
-    this.weaponSystem.update(deltaTime, mockInput, performance.now() / 1000, new THREE.Vector3());
+    this.weaponSystem.update(deltaTime, mockInput, performance.now() / 1000, this._zeroVector);
 
     if (this.xwingExploded) {
       this.timeSinceExplosion += deltaTime;

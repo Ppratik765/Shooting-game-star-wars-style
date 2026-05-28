@@ -104,6 +104,7 @@ export default async function handler(req, res) {
     });
 
     let bodyCommand;
+    let endpoint = `${url}/`;
     if (oldPayloadsToDelete.length > 0) {
       const commands = [];
       for (const oldPayload of oldPayloadsToDelete) {
@@ -111,11 +112,12 @@ export default async function handler(req, res) {
       }
       commands.push(['ZADD', 'leaderboard', score, payload]);
       bodyCommand = commands;
+      endpoint = `${url}/pipeline`;
     } else {
       bodyCommand = ['ZADD', 'leaderboard', score, payload];
     }
 
-    const response = await fetch(`${url}/`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

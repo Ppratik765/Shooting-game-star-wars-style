@@ -124,6 +124,18 @@ export class EnemyManager {
         maxAge: 3.5
       });
     }
+
+    // Reusable temp vectors to avoid garbage collection
+    this._tempV1 = new THREE.Vector3();
+    this._tempV2 = new THREE.Vector3();
+    this._tempV3 = new THREE.Vector3();
+    this._tempV4 = new THREE.Vector3();
+    this._tempV5 = new THREE.Vector3();
+    this._tempV6 = new THREE.Vector3();
+    this._tempV7 = new THREE.Vector3();
+    this._tempV8 = new THREE.Vector3();
+    this._tempV9 = new THREE.Vector3();
+    this._tempV10 = new THREE.Vector3();
   }
 
   // Build translucent red wireframe TIE fighter meshes — massively cheaper than solid
@@ -210,7 +222,7 @@ export class EnemyManager {
     return variants;
   }
 
-  update(deltaTime) {
+  update(deltaTime, timeSurvived = 0) {
     this.spawnTimer += deltaTime;
     if (this.spawnTimer > this.spawnRate) {
       this._spawnFormation();
@@ -254,17 +266,17 @@ export class EnemyManager {
       }
 
       // --- Flyby AI State Machine (runs spatial sweeps, avoids collisions) ---
-      const distToPlayer = enemy.mesh.position.distanceTo(playerPos);
-      let targetPos = new THREE.Vector3();
+      const distToPlayerSq = enemy.mesh.position.distanceToSquared(playerPos);
+      const targetPos = this._tempV1.set(0, 0, 0);
 
       if (enemy.formationLeader && enemy.formationLeader.active && !enemy.formationLeader.dying) {
         const leaderPos = enemy.formationLeader.mesh.position;
-        const leaderFwd = new THREE.Vector3();
+        const leaderFwd = this._tempV2;
         enemy.formationLeader.mesh.getWorldDirection(leaderFwd);
-        const leaderRight = new THREE.Vector3().crossVectors(leaderFwd, new THREE.Vector3(0, 1, 0)).normalize();
-        targetPos = leaderPos.clone()
+        const leaderRight = this._tempV3.crossVectors(leaderFwd, this._tempV4.set(0, 1, 0)).normalize();
+        targetPos.copy(leaderPos)
           .addScaledVector(leaderRight, enemy.formationOffset.x)
-          .addScaledVector(new THREE.Vector3(0, 1, 0), enemy.formationOffset.y)
+          .addScaledVector(this._tempV4.set(0, 1, 0), enemy.formationOffset.y)
           .addScaledVector(leaderFwd, enemy.formationOffset.z);
       } else {
         // Spatial flyby state transitions
@@ -274,29 +286,29 @@ export class EnemyManager {
 
         if (enemy.flybyState === 'approach') {
           // Check if we passed the player, are very close and moving away, or got behind the player
-          const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
-          const toPlayerDir = toPlayerVec.clone().normalize();
+          const toPlayerVec = this._tempV2.subVectors(playerPos, enemy.mesh.position);
+          const toPlayerDir = this._tempV3.copy(toPlayerVec).normalize();
           const movingAway = enemy.velocity.dot(toPlayerDir) < -10;
 
-          const playerFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
-          const toEnemyDir = enemy.mesh.position.clone().sub(playerPos).normalize();
+          const playerFwd = this._tempV4.set(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
+          const toEnemyDir = this._tempV5.subVectors(enemy.mesh.position, playerPos).normalize();
           const isBehindPlayer = toEnemyDir.dot(playerFwd) < -0.2; // Negative dot product means behind
 
-          if (distToPlayer < 90 || (distToPlayer < 180 && movingAway) || (isBehindPlayer && distToPlayer < 800)) {
+          if (distToPlayerSq < 8100 || (distToPlayerSq < 32400 && movingAway) || (isBehindPlayer && distToPlayerSq < 640000)) {
             enemy.flybyState = 'retreat';
             if (this.onEnemyRetreat) this.onEnemyRetreat();
             // Retreat target: If behind player, do a 3D repositioning maneuver far ahead of player to re-engage
             if (isBehindPlayer) {
               const side = Math.random() > 0.5 ? 1 : -1;
-              const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(this.playerShip.camera.quaternion);
-              const upVec = new THREE.Vector3(0, 1, 0).applyQuaternion(this.playerShip.camera.quaternion);
+              const rightVec = this._tempV6.set(1, 0, 0).applyQuaternion(this.playerShip.camera.quaternion);
+              const upVec = this._tempV7.set(0, 1, 0).applyQuaternion(this.playerShip.camera.quaternion);
               enemy.retreatTarget.copy(playerPos)
                 .addScaledVector(playerFwd, 1500 + Math.random() * 500)
                 .addScaledVector(rightVec, (500 + Math.random() * 300) * side)
                 .addScaledVector(upVec, 300 + Math.random() * 400);
             } else {
               // Standard flyby retreat
-              const heading = enemy.velocity.clone().normalize();
+              const heading = this._tempV6.copy(enemy.velocity).normalize();
               if (heading.lengthSq() < 0.1) {
                 enemy.mesh.getWorldDirection(heading);
               }
@@ -304,27 +316,27 @@ export class EnemyManager {
             }
           }
         } else if (enemy.flybyState === 'retreat') {
-          if (distToPlayer > 950 || enemy.mesh.position.distanceTo(enemy.retreatTarget) < 250) {
+          if (distToPlayerSq > 902500 || enemy.mesh.position.distanceToSquared(enemy.retreatTarget) < 62500) {
             enemy.flybyState = 'turn';
             enemy.turnTimer = 2.0 + Math.random() * 1.5;
 
             // Wide sweep target towards the player direction but offset to circle
-            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
-            const perp = new THREE.Vector3(0, 1, 0).cross(toPlayerVec).normalize();
+            const toPlayerVec = this._tempV2.subVectors(playerPos, enemy.mesh.position);
+            const perp = this._tempV3.set(0, 1, 0).cross(toPlayerVec).normalize();
             enemy.turnTarget.copy(enemy.mesh.position)
               .addScaledVector(perp, 250)
-              .addScaledVector(toPlayerVec.normalize(), 200);
+              .addScaledVector(this._tempV4.copy(toPlayerVec).normalize(), 200);
           }
         } else if (enemy.flybyState === 'turn') {
           enemy.turnTimer -= deltaTime;
           if (enemy.turnTimer <= 0) {
             enemy.flybyState = 'approach';
             // Compute a safe perpendicular offset of 55-85 units to avoid contact
-            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
-            const toPlayerDir = toPlayerVec.clone().normalize();
-            let perp = new THREE.Vector3(0, 1, 0).cross(toPlayerDir).normalize();
+            const toPlayerVec = this._tempV2.subVectors(playerPos, enemy.mesh.position);
+            const toPlayerDir = this._tempV3.copy(toPlayerVec).normalize();
+            let perp = this._tempV4.set(0, 1, 0).cross(toPlayerDir).normalize();
             if (perp.lengthSq() < 0.01) {
-              perp = new THREE.Vector3(1, 0, 0).cross(toPlayerDir).normalize();
+              perp.set(1, 0, 0).cross(toPlayerDir).normalize();
             }
             const angle = Math.random() * Math.PI * 2;
             perp.applyAxisAngle(toPlayerDir, angle);
@@ -336,11 +348,11 @@ export class EnemyManager {
         // Apply Target Positions
         if (enemy.flybyState === 'approach') {
           if (enemy.flybyOffset.lengthSq() === 0) {
-            const toPlayerVec = playerPos.clone().sub(enemy.mesh.position);
-            const toPlayerDir = toPlayerVec.clone().normalize();
-            let perp = new THREE.Vector3(0, 1, 0).cross(toPlayerDir).normalize();
+            const toPlayerVec = this._tempV2.subVectors(playerPos, enemy.mesh.position);
+            const toPlayerDir = this._tempV3.copy(toPlayerVec).normalize();
+            let perp = this._tempV4.set(0, 1, 0).cross(toPlayerDir).normalize();
             if (perp.lengthSq() < 0.01) {
-              perp = new THREE.Vector3(1, 0, 0).cross(toPlayerDir).normalize();
+              perp.set(1, 0, 0).cross(toPlayerDir).normalize();
             }
             const angle = Math.random() * Math.PI * 2;
             perp.applyAxisAngle(toPlayerDir, angle);
@@ -358,15 +370,15 @@ export class EnemyManager {
       // Terrain avoidance
       const lookAheadDist = 50;
       if (this.terrain) {
-        const lookDir = targetPos.clone().sub(enemy.mesh.position).normalize();
-        const lookAhead = enemy.mesh.position.clone().addScaledVector(lookDir, lookAheadDist);
+        const lookDir = this._tempV2.subVectors(targetPos, enemy.mesh.position).normalize();
+        const lookAhead = this._tempV3.copy(enemy.mesh.position).addScaledVector(lookDir, lookAheadDist);
         const terrainAhead = this.terrain.getHeightAt(lookAhead.x, lookAhead.z);
         if (lookAhead.y < terrainAhead + 30) {
           targetPos.y += 80;
         }
       }
 
-      const dir = new THREE.Vector3().subVectors(targetPos, enemy.mesh.position).normalize();
+      const dir = this._tempV2.subVectors(targetPos, enemy.mesh.position).normalize();
 
       // Evasion maneuver
       enemy.evasionTimer -= deltaTime;
@@ -379,20 +391,18 @@ export class EnemyManager {
         );
       }
 
-
-
       let baseSpeed = 145 + i * 1.5; // High energy flyby speeds
       if (this.isMobile) {
         baseSpeed *= 0.85;
       }
 
-      const targetVelocity = dir.clone().multiplyScalar(baseSpeed);
+      const targetVelocity = this._tempV3.copy(dir).multiplyScalar(baseSpeed);
       targetVelocity.addScaledVector(enemy.evasionDir, 12);
       enemy.velocity.lerp(targetVelocity, 1.4 * deltaTime);
 
       enemy.mesh.position.addScaledVector(enemy.velocity, deltaTime);
       if (enemy.velocity.lengthSq() > 0.01) {
-        const lookTarget = enemy.mesh.position.clone().add(enemy.velocity.clone().normalize());
+        const lookTarget = this._tempV5.copy(enemy.mesh.position).add(this._tempV6.copy(enemy.velocity).normalize());
         enemy.mesh.lookAt(lookTarget);
       }
 
@@ -406,19 +416,19 @@ export class EnemyManager {
       }
 
       // Despawn if too far
-      if (distToPlayer > 1800) {
+      if (distToPlayerSq > 3240000) {
         enemy.active = false;
         enemy.mesh.visible = false;
         continue;
       }
 
       // Enemy shooting
-      if (distToPlayer < 700) {
+      if (distToPlayerSq < 490000) {
         enemy.fireTimer += deltaTime;
         if (enemy.fireTimer >= enemy.fireInterval) {
           enemy.fireTimer = 0;
           enemy.fireInterval = 1.5 + Math.random() * 2.5;
-          this._enemyFire(enemy, playerPos, playerVel);
+          this._enemyFire(enemy, playerPos, playerVel, timeSurvived);
         }
       }
     }
@@ -426,7 +436,7 @@ export class EnemyManager {
     this._updateEnemyProjectiles(deltaTime);
   }
 
-  _enemyFire(enemy, playerPos, playerVel) {
+  _enemyFire(enemy, playerPos, playerVel, timeSurvived = 0) {
     const proj = this.enemyProjectiles.find(p => !p.active);
     if (!proj) return;
 
@@ -437,18 +447,24 @@ export class EnemyManager {
 
     const bulletSpeed = 380;  // Faster enemy bullets
     const leadTime = enemy.mesh.position.distanceTo(playerPos) / bulletSpeed;
-    const predictedPlayerPos = playerPos.clone().addScaledVector(playerVel, leadTime * 0.6);
+    const predictedPlayerPos = this._tempV2.copy(playerPos).addScaledVector(playerVel, leadTime * 0.6);
 
-    const aimDir = new THREE.Vector3().subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
+    const aimDir = this._tempV3.subVectors(predictedPlayerPos, enemy.mesh.position).normalize();
 
-    const spread = 0.22; // Stormtrooper aim: worsened significantly to increase survivability and game length
+    let spread = 0.22; // Stormtrooper aim: worsened significantly to increase survivability and game length
+    if (timeSurvived >= 150) {
+      // Scale enemy shooting accuracy in Phase 3 (sunset weather, starting at 150s).
+      // Aim spread tightens from 0.07 down to 0.02 (pinpoint accuracy) over 120s.
+      const phase3Time = timeSurvived - 150;
+      spread = Math.max(0.02, 0.07 - (phase3Time / 120) * 0.05);
+    }
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
     aimDir.z += (Math.random() - 0.5) * spread;
     aimDir.normalize();
 
     proj.velocity.copy(aimDir).multiplyScalar(bulletSpeed);
-    proj.mesh.lookAt(proj.mesh.position.clone().add(aimDir));
+    proj.mesh.lookAt(this._tempV4.copy(proj.mesh.position).add(aimDir));
   }
 
   _updateEnemyProjectiles(deltaTime) {
@@ -464,7 +480,7 @@ export class EnemyManager {
       if (this.terrain) {
         const tH = this.terrain.getHeightAt(p.mesh.position.x, p.mesh.position.z);
         if (p.mesh.position.y <= tH + 2) {
-          const impactPos = p.mesh.position.clone();
+          const impactPos = this._tempV2.copy(p.mesh.position);
           impactPos.y = tH;
           this.particleSystem.spawnLaserImpact(impactPos);
           p.active = false;
@@ -473,8 +489,8 @@ export class EnemyManager {
         }
       }
 
-      const dist = p.mesh.position.distanceTo(playerPos);
-      if (dist < 12) {
+      const distSq = p.mesh.position.distanceToSquared(playerPos);
+      if (distSq < 144) {
         p.active = false;
         p.mesh.visible = false;
         if (!this.playerShip.shieldActive) {

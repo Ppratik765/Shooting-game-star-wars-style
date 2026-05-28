@@ -122,6 +122,9 @@ export class AudioManager {
       console.warn('AudioManager: Web Audio API unavailable in constructor', err);
       this.preloadPromise = Promise.resolve();
     }
+
+    // Reusable temp structures to avoid garbage collection
+    this._tempV1 = new THREE.Vector3();
   }
 
   async _preload() {
@@ -449,10 +452,10 @@ export class AudioManager {
       const enemy = enemies[i];
       if (!enemy.active || enemy.dying) continue;
 
-      const dist = enemy.mesh.position.distanceTo(playerPos);
-      // Trigger a flyby sound when enemy is within 120 units and closing rapidly
-      if (dist < 120 && dist > 20) {
-        const toPlayer = playerPos.clone().sub(enemy.mesh.position).normalize();
+      const distSq = enemy.mesh.position.distanceToSquared(playerPos);
+      // Trigger a flyby sound when enemy is within 120 units (14400 squared) and closing rapidly
+      if (distSq < 14400 && distSq > 400) {
+        const toPlayer = this._tempV1.subVectors(playerPos, enemy.mesh.position).normalize();
         const closing = enemy.velocity.dot(toPlayer);
         if (closing > 25) {
           this._playFlyby(enemy);

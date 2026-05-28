@@ -191,6 +191,7 @@ export default defineConfig(({ mode }) => {
                     });
 
                     let bodyCommand;
+                    let endpoint = `${dbUrl}/`;
                     if (oldPayloadsToDelete.length > 0) {
                       const commands = [];
                       for (const oldPayload of oldPayloadsToDelete) {
@@ -198,11 +199,12 @@ export default defineConfig(({ mode }) => {
                       }
                       commands.push(['ZADD', 'leaderboard', score, payload]);
                       bodyCommand = commands;
+                      endpoint = `${dbUrl}/pipeline`;
                     } else {
                       bodyCommand = ['ZADD', 'leaderboard', score, payload];
                     }
 
-                    const response = await fetch(`${dbUrl}/`, {
+                    const response = await fetch(endpoint, {
                       method: 'POST',
                       headers: {
                         Authorization: `Bearer ${dbToken}`,

@@ -20,18 +20,19 @@ export class PowerUpManager {
     this.icoGeom = new THREE.IcosahedronGeometry(22);
 
     // Materials with highly emissive, wireframe parameters (fully opaque)
+    // Using values above 1.0 (HDR) to trigger UnrealBloomPass glow without real PointLights
     this.hullMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff66,
+      color: new THREE.Color(0.0, 3.5, 1.2),
       wireframe: true
     });
 
     this.shieldMat = new THREE.MeshBasicMaterial({
-      color: 0x00ccff,
+      color: new THREE.Color(0.0, 2.5, 4.0),
       wireframe: true
     });
 
     this.enginesMat = new THREE.MeshBasicMaterial({
-      color: 0xffcc00,
+      color: new THREE.Color(4.0, 2.0, 0.0),
       wireframe: true
     });
 
@@ -42,16 +43,8 @@ export class PowerUpManager {
     for (let i = 0; i < this.maxPowerUps; i++) {
       const group = new THREE.Group();
 
-      // PointLight to cast reflection on surrounding mountains (mobile has lighter light count)
-      let light = null;
-      if (!this.isMobile) {
-        light = new THREE.PointLight(0xffffff, 2.5, 90, 1.5);
-        group.add(light);
-      }
-
       const container = {
         group,
-        light,
         mesh: null,
         textSprite: null,
         active: false,
@@ -101,18 +94,16 @@ export class PowerUpManager {
     const item = this.pool.find(p => !p.active);
     if (!item) return;
 
-    // Pick random type (HULL or WEAPONS only, 50/50 chance)
+    // Pick random type (HULL or SHIELD only, 50/50 chance)
     const r = Math.random();
     let type = this.types.HULL;
     let mat = this.hullMat;
     let geom = this.octaGeom;
-    let lightColor = 0x00ff66;
 
     if (r > 0.50) {
       type = this.types.SHIELD;
       mat = this.shieldMat;
       geom = this.icoGeom; // Blue has the same shape as yellow (Icosahedron)
-      lightColor = 0x00ccff;
     }
 
     // Clean old mesh
@@ -139,12 +130,6 @@ export class PowerUpManager {
     item.spawnTime = performance.now() / 1000;
     item.bobOffset = Math.random() * Math.PI * 2;
 
-    // Setup light
-    if (item.light) {
-      item.light.color.setHex(lightColor);
-      item.light.intensity = 2.5;
-    }
-
     // Set height to terrainHeight + 160 (pushed down 50 units from +210)
     item.group.position.set(x, terrainHeight + 160, z);
     item.group.visible = true;
@@ -167,11 +152,6 @@ export class PowerUpManager {
       // Spin
       item.mesh.rotation.y += 1.2 * deltaTime;
       item.mesh.rotation.x += 0.5 * deltaTime;
-
-      // Glow light modulation
-      if (item.light) {
-        item.light.intensity = 2.5 + Math.sin(elapsed * 5.0) * 0.8;
-      }
     }
   }
 

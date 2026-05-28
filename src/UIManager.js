@@ -91,6 +91,12 @@ export class UIManager {
     this.btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
 
     this._setupLeaderboardEvents();
+
+    // Reusable temp structures to avoid garbage collection
+    this._tempV1 = new THREE.Vector3();
+    this._tempV2 = new THREE.Vector3();
+    this._tempV3 = new THREE.Vector3();
+    this._tempV4 = new THREE.Vector3();
   }
 
   _setupLeaderboardEvents() {
@@ -786,10 +792,10 @@ export class UIManager {
     const radarRadius = 85;
     const radarScale  = 0.08;
 
-    const camDir = new THREE.Vector3();
+    const camDir = this._tempV1;
     camera.getWorldDirection(camDir);
     camDir.y = 0; camDir.normalize();
-    const camRight = new THREE.Vector3(camDir.z, 0, -camDir.x);
+    const camRight = this._tempV2.set(camDir.z, 0, -camDir.x);
 
     const liveBlips = [];
 
@@ -799,7 +805,7 @@ export class UIManager {
 
     for (const enemy of enemies) {
       if (enemy.active && !enemy.dying) {
-        const pos = enemy.mesh.position.clone().project(camera);
+        const pos = this._tempV3.copy(enemy.mesh.position).project(camera);
         if (pos.z < 1 && pos.z > 0) {
           if (!this.hpBars[enemy.id]) {
             const div  = document.createElement('div');
@@ -830,7 +836,7 @@ export class UIManager {
 
         // Collect for sonar (only when not jammed)
         if (!this.isRadarJammed) {
-          const toEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, camera.position);
+          const toEnemy = this._tempV4.subVectors(enemy.mesh.position, camera.position);
           toEnemy.y = 0;
           const distFwd   = toEnemy.dot(camDir);
           const distRight = toEnemy.dot(camRight);
@@ -852,7 +858,7 @@ export class UIManager {
     // Collect active powerups for radar (only when not jammed)
     if (!this.isRadarJammed && activePowerUps) {
       for (const item of activePowerUps) {
-        const toPowerUp = new THREE.Vector3().subVectors(item.group.position, camera.position);
+        const toPowerUp = this._tempV4.subVectors(item.group.position, camera.position);
         toPowerUp.y = 0;
         const distFwd   = toPowerUp.dot(camDir);
         const distRight = toPowerUp.dot(camRight);

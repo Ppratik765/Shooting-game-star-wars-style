@@ -84,7 +84,7 @@ export class WeaponSystem {
 
     // Shared Materials for performance
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xff9900,
+      color: new THREE.Color(4.5, 1.8, 0.0), // HDR Orange for UnrealBloomPass faked glow
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -114,16 +114,8 @@ export class WeaponSystem {
         this.scene.add(glow);
       }
 
-      // PointLight for laser illumination (desktop only)
-      let light = null;
-      if (!isMobile) {
-        light = new THREE.PointLight(0xff9900, 3, 120, 2);
-        light.visible = false;
-        this.scene.add(light);
-      }
-
       this.pool.push({
-        mesh, coreMesh, glow, light,
+        mesh, coreMesh, glow,
         active: false,
         velocity: new THREE.Vector3(),
         direction: new THREE.Vector3(),
@@ -134,6 +126,14 @@ export class WeaponSystem {
     }
 
     this.raycaster = new THREE.Raycaster();
+
+    // Reusable temp structures to avoid garbage collection
+    this._tempV1 = new THREE.Vector3();
+    this._tempV2 = new THREE.Vector3();
+    this._tempV3 = new THREE.Vector3();
+    this._tempV4 = new THREE.Vector3();
+    this._tempV5 = new THREE.Vector3();
+    this._tempLine = new THREE.Line3();
   }
 
   update(deltaTime, inputController, currentTime, playerVelocity) {
@@ -173,7 +173,6 @@ export class WeaponSystem {
       p.age += deltaTime;
       if (p.age > p.maxAge) { this._deactivate(p); continue; }
 
-      // Pure straight-line movement
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
       p.coreMesh.position.copy(p.mesh.position);
       p.coreMesh.quaternion.copy(p.mesh.quaternion);
@@ -181,16 +180,13 @@ export class WeaponSystem {
         p.glow.position.copy(p.mesh.position);
         p.glow.quaternion.copy(p.mesh.quaternion);
       }
-      if (p.light) {
-        p.light.position.copy(p.mesh.position);
-      }
 
       // Terrain collision — laser hits ground
       if (this.terrain) {
         const tH = this.terrain.getHeightAt(p.mesh.position.x, p.mesh.position.z);
         if (p.mesh.position.y <= tH + 2) {
           if (this.particleSystem) {
-            const impactPos = p.mesh.position.clone();
+            const impactPos = this._tempV4.copy(p.mesh.position);
             impactPos.y = tH;
             this.particleSystem.spawnLaserImpact(impactPos);
           }
@@ -267,7 +263,7 @@ export class WeaponSystem {
     p.mesh.position.copy(origin);
     p.mesh.visible = true;
     // Orient mesh: lookAt points local -Z at target — cylinder is pre-aligned along -Z
-    const target = origin.clone().add(direction);
+    const target = this._tempV5.copy(origin).add(direction);
     p.mesh.lookAt(target);
 
     p.coreMesh.position.copy(origin);
@@ -279,15 +275,10 @@ export class WeaponSystem {
       p.glow.quaternion.copy(p.mesh.quaternion);
       p.glow.visible = true;
     }
-    if (p.light) {
-      p.light.position.copy(origin);
-      p.light.visible = true;
-    }
 
     p.velocity.copy(velocity);
     p.direction.copy(direction);
     p.trackingTarget = null;
-
   }
 
   _deactivate(p) {
@@ -295,29 +286,28 @@ export class WeaponSystem {
     p.mesh.visible = false;
     p.coreMesh.visible = false;
     if (p.glow) p.glow.visible = false;
-    if (p.light) p.light.visible = false;
     p.trackingTarget = null;
   }
 
   _checkCollisions(projectile) {
     const enemies = this.enemyManager.getEnemies();
 
-    // Create a line segment representing the bullet's volume this frame
-    // Length is 160, plus we add a slight look-ahead for speed tunneling
-    const tail = projectile.mesh.position.clone().addScaledVector(projectile.direction, -160);
-    const head = projectile.mesh.position.clone().addScaledVector(projectile.direction, 100);
-    const line = new THREE.Line3(tail, head);
-    const closestPoint = new THREE.Vector3();
+    // Create a line segment representing the bullet's volume this frame without allocating new Vector3s
+    const tail = this._tempV1.copy(projectile.mesh.position).addScaledVector(projectile.direction, -160);
+    const head = this._tempV2.copy(projectile.mesh.position).addScaledVector(projectile.direction, 100);
+    this._tempLine.set(tail, head);
+    const closestPoint = this._tempV3;
 
     for (let i = 0; i < enemies.length; i++) {
       const enemy = enemies[i];
       if (!enemy.active || enemy.dying) continue;
 
-      line.closestPointToPoint(enemy.mesh.position, true, closestPoint);
-      const dist = closestPoint.distanceTo(enemy.mesh.position);
+      this._tempLine.closestPointToPoint(enemy.mesh.position, true, closestPoint);
+      const threshold = enemy.radius + 8;
+      const distSq = closestPoint.distanceToSquared(enemy.mesh.position);
 
-      // Increased leeway for easier hitting and fast gameplay
-      if (dist < enemy.radius + 8) {
+      // Compare squared distance to avoid Math.sqrt()
+      if (distSq < threshold * threshold) {
         this.enemyManager.damageEnemy(enemy, 1);
         this._deactivate(projectile);
         return;
