@@ -457,6 +457,11 @@ export class EnemyManager {
       // Aim spread tightens from 0.07 down to 0.02 (pinpoint accuracy) over 120s.
       const phase3Time = timeSurvived - 150;
       spread = Math.max(0.02, 0.07 - (phase3Time / 120) * 0.05);
+    } else if (timeSurvived >= 75) {
+      // Scale enemy shooting accuracy in Phase 2 (75s to 150s).
+      // Aim spread tightens from 0.22 down to 0.14.
+      const phase2Time = timeSurvived - 75;
+      spread = 0.22 - (phase2Time / 75) * 0.08;
     }
     aimDir.x += (Math.random() - 0.5) * spread;
     aimDir.y += (Math.random() - 0.5) * spread;
@@ -657,8 +662,8 @@ export class EnemyManager {
     // Place diamond death marker
     this._placeDeathMarker(crashPos);
 
-    // Salvage check: 30% chance to spawn a power-up on ground collision
-    if (this.powerUpManager && Math.random() < 0.30) {
+    // Salvage check: 20% chance to spawn a power-up on ground collision
+    if (this.powerUpManager && Math.random() < 0.20) {
       this.powerUpManager.spawnPowerUp(crashPos.x, crashPos.z, crashPos.y);
     }
   }

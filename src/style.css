@@ -1150,3 +1150,77 @@ html, body {
   background: rgba(0, 255, 170, 0.08);
 }
 
+/* === Custom Neon dialog modal === */
+#custom-dialog-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.88);
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+}
+#custom-dialog-content {
+  width: 500px;
+  max-width: 90vw;
+  box-sizing: border-box;
+  text-align: center;
+  border: 2px solid #00ffaa;
+  background: rgba(0, 8, 4, 0.96);
+  padding: 30px 40px;
+  border-radius: 8px;
+  box-shadow: 0 0 25px rgba(0, 255, 170, 0.35), inset 0 0 15px rgba(0, 255, 170, 0.05);
+  font-family: 'VT323', monospace;
+}
+#custom-dialog-title {
+  font-size: 28px;
+  color: #00ffaa;
+  text-shadow: 0 0 12px #00ffaa;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+#custom-dialog-message {
+  font-size: 22px;
+  color: #ffb700;
+  text-shadow: 0 0 8px rgba(255, 183, 0, 0.4);
+  line-height: 1.5;
+  margin-bottom: 30px;
+  white-space: pre-wrap;
+}
+#custom-dialog-buttons {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.dialog-btn {
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  color: #00ffaa;
+  background: transparent;
+  border: 2px solid #00ffaa;
+  padding: 8px 24px;
+  cursor: pointer;
+  text-shadow: 0 0 8px #00ffaa;
+  box-shadow: 0 0 8px rgba(0, 255, 170, 0.3);
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.dialog-btn:hover {
+  background: rgba(0, 255, 170, 0.15);
+  box-shadow: 0 0 20px #00ffaa;
+}
+.dialog-btn.cancel {
+  color: #ff4444;
+  border-color: #ff4444;
+  text-shadow: 0 0 8px #ff4444;
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+}
+.dialog-btn.cancel:hover {
+  background: rgba(255, 68, 68, 0.15);
+  box-shadow: 0 0 20px #ff4444;
+}
+

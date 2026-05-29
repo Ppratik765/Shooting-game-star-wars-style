@@ -140,7 +140,7 @@ export class UIManager {
       this.btnSubmitScore.addEventListener('click', async () => {
         const name = this.leaderboardAliasInput.value.trim().toUpperCase();
         if (!name) {
-          alert('ENTER CALLSIGN');
+          this.showCustomAlert('WARNING', 'ENTER CALLSIGN');
           return;
         }
 
@@ -184,27 +184,39 @@ export class UIManager {
               const newPbTag = document.getElementById('new-pb-tag');
               if (newPbTag) newPbTag.style.display = 'none';
             } else if (data.code === 'RECORD_NOT_SUPERIOR') {
-              alert(`[ TRANSMISSION BLOCKED ]\nIMPERIAL DATABASE SHOWS CALLSIGN "${name}" IS ALREADY RESERVED BY A DECORATED PILOT WITH A SUPERIOR OR EQUAL RECORD (${data.existingScore} KILLS).\n\nIf you are a different pilot, please select a unique callsign to register your telemetry.`);
-              if (this.leaderboardAliasInput) {
-                this.leaderboardAliasInput.focus();
-                this.leaderboardAliasInput.select();
-              }
-            } else if (data.code === 'REQUIRES_OVERWRITE_CONFIRMATION') {
-              const confirmMsg = `[ CALLSIGN COLLISION DETECTED ]\nATTENTION PILOT: Callsign "${name}" is already registered in the databanks with ${data.existingScore} kills.\n\n- Click OK if this is your own record and you wish to overwrite it with your new personal best of ${stats.kills} kills.\n- Click CANCEL if you are a different pilot and want to choose a different callsign.`;
-              if (confirm(confirmMsg)) {
-                await submitFn(true); // Resubmit with overwrite confirm
-              } else {
-                if (this.leaderboardAliasInput) {
-                  this.leaderboardAliasInput.focus();
-                  this.leaderboardAliasInput.select();
+              this.showCustomAlert(
+                '[ TRANSMISSION BLOCKED ]',
+                `IMPERIAL DATABASE SHOWS CALLSIGN "${name}" IS ALREADY RESERVED BY A DECORATED PILOT WITH A SUPERIOR OR EQUAL RECORD (${data.existingScore} KILLS).\n\nIf you are a different pilot, please select a unique callsign to register your telemetry.`,
+                () => {
+                  if (this.leaderboardAliasInput) {
+                    this.leaderboardAliasInput.focus();
+                    this.leaderboardAliasInput.select();
+                  }
                 }
-              }
+              );
+            } else if (data.code === 'REQUIRES_OVERWRITE_CONFIRMATION') {
+              const confirmMsg = `[ CALLSIGN COLLISION DETECTED ]\nATTENTION PILOT: Callsign "${name}" is already registered in the databanks with ${data.existingScore} kills.\n\n- Click OVERWRITE if this is your own record and you wish to overwrite it with your new personal best of ${stats.kills} kills.\n- Click CANCEL if you are a different pilot and want to choose a different callsign.`;
+              this.showCustomConfirm(
+                '[ CALLSIGN COLLISION DETECTED ]',
+                confirmMsg,
+                async () => {
+                  await submitFn(true); // Resubmit with overwrite confirm
+                },
+                () => {
+                  if (this.leaderboardAliasInput) {
+                    this.leaderboardAliasInput.focus();
+                    this.leaderboardAliasInput.select();
+                  }
+                },
+                '[ OVERWRITE ]',
+                '[ CANCEL ]'
+              );
             } else {
-              alert(data.error || 'TRANSMISSION FAILED');
+              this.showCustomAlert('TRANSMISSION FAILED', data.error || 'UNABLE TO UPLOAD SCORE.');
             }
           } catch (err) {
             console.error(err);
-            alert('DATABASE CONNECTION ERROR');
+            this.showCustomAlert('DATABASE CONNECTION ERROR', 'COULD NOT REACH LEADERBOARD TRANSCEIVER.');
           } finally {
             this.btnSubmitScore.disabled = false;
             this.btnSubmitScore.textContent = '[ UPLOAD DATA ]';
@@ -1235,6 +1247,65 @@ export class UIManager {
           });
         });
       }
+    });
+  }
+
+  showCustomAlert(title, message, onOk = null, okLabel = '[ OK ]') {
+    const overlay = document.getElementById('custom-dialog-overlay');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const btnOk = document.getElementById('custom-dialog-btn-ok');
+    const btnCancel = document.getElementById('custom-dialog-btn-cancel');
+
+    if (!overlay) return;
+
+    titleEl.innerText = title;
+    msgEl.innerText = message;
+    btnOk.innerText = okLabel;
+    btnCancel.style.display = 'none';
+
+    overlay.style.display = 'flex';
+
+    const newBtnOk = btnOk.cloneNode(true);
+    btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+
+    newBtnOk.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      if (onOk) onOk();
+    });
+  }
+
+  showCustomConfirm(title, message, onConfirm, onCancel = null, confirmLabel = '[ OK ]', cancelLabel = '[ CANCEL ]') {
+    const overlay = document.getElementById('custom-dialog-overlay');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const btnOk = document.getElementById('custom-dialog-btn-ok');
+    const btnCancel = document.getElementById('custom-dialog-btn-cancel');
+
+    if (!overlay) return;
+
+    titleEl.innerText = title;
+    msgEl.innerText = message;
+    btnOk.innerText = confirmLabel;
+    btnCancel.innerText = cancelLabel;
+    btnCancel.style.display = 'inline-block';
+
+    overlay.style.display = 'flex';
+
+    const newBtnOk = btnOk.cloneNode(true);
+    btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+
+    const newBtnCancel = btnCancel.cloneNode(true);
+    btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
+
+    newBtnOk.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      if (onConfirm) onConfirm();
+    });
+
+    newBtnCancel.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      if (onCancel) onCancel();
     });
   }
 }
