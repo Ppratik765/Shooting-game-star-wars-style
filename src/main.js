@@ -30,7 +30,8 @@ if (isAutoplay) {
     #meters-container,
     #warning-container,
     #powerup-timer-container,
-    #target-lock {
+    #target-lock,
+    #settings-btn {
       display: none !important;
     }
   `;
