@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 
 export class ParticleSystem {
-  constructor(scene, isMobile = false) {
+  constructor(scene, isMobile = false, isLightMode = false) {
     this.scene = scene;
     this.isMobile = isMobile;
+    this.isLightMode = isLightMode;
 
     this.maxParticles = isMobile ? 1500 : 4000;
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+    const material = new THREE.MeshBasicMaterial({ color: this.isLightMode ? 0x00ccff : 0xffaa00 });
 
     this.instancedMesh = new THREE.InstancedMesh(geometry, material, this.maxParticles);
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -99,9 +100,15 @@ export class ParticleSystem {
       p.age = 0;
       p.life = 0.3 + Math.random() * 0.7;
       const r = Math.random();
-      if (r > 0.8) p.color.setHex(0xffffff);
-      else if (r > 0.4) p.color.setHex(0xffaa00);
-      else p.color.setHex(0xff0000);
+      if (this.isLightMode) {
+        if (r > 0.8) p.color.setHex(0xffffff);
+        else if (r > 0.4) p.color.setHex(0x00ccff);
+        else p.color.setHex(0x0055ff);
+      } else {
+        if (r > 0.8) p.color.setHex(0xffffff);
+        else if (r > 0.4) p.color.setHex(0xffaa00);
+        else p.color.setHex(0xff0000);
+      }
     }
 
     // Debris that falls to ground
@@ -130,7 +137,11 @@ export class ParticleSystem {
       );
       p.age = 0;
       p.life = 0.8 + Math.random() * 1.2;
-      p.color.setHex(Math.random() > 0.5 ? 0xff0000 : 0xff6600);
+      if (this.isLightMode) {
+        p.color.setHex(Math.random() > 0.5 ? 0x0055ff : 0x00ccff);
+      } else {
+        p.color.setHex(Math.random() > 0.5 ? 0xff0000 : 0xff6600);
+      }
     }
   }
 
@@ -149,9 +160,15 @@ export class ParticleSystem {
       p.age = 0;
       p.life = 0.2 + Math.random() * 0.4;
       const r = Math.random();
-      if (r > 0.6) p.color.setHex(0xff0000);
-      else if (r > 0.3) p.color.setHex(0xff4400);
-      else p.color.setHex(0xff8800);
+      if (this.isLightMode) {
+        if (r > 0.6) p.color.setHex(0x0055ff);
+        else if (r > 0.3) p.color.setHex(0x0088ff);
+        else p.color.setHex(0x00ccff);
+      } else {
+        if (r > 0.6) p.color.setHex(0xff0000);
+        else if (r > 0.3) p.color.setHex(0xff4400);
+        else p.color.setHex(0xff8800);
+      }
     }
   }
 
@@ -174,7 +191,7 @@ export class ParticleSystem {
       ringGeom.rotateX(-Math.PI / 2); // lay flat on XZ plane
 
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xffdd00,
+        color: this.isLightMode ? 0x00ccff : 0xffdd00,
         transparent: true,
         opacity: c.opacity,
         side: THREE.DoubleSide,

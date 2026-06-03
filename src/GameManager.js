@@ -96,13 +96,13 @@ export class GameManager {
     this.introStartYaw = this.playerShip.yaw;
 
     this.terrain = new Terrain(this.scene, isMobile);
-    this.particleSystem = new ParticleSystem(this.scene, isMobile);
+    this.particleSystem = new ParticleSystem(this.scene, isMobile, this.isLightMode);
     this.powerUpManager = new PowerUpManager(this.scene, isMobile);
-    this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
+    this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile, this.isLightMode);
     this.enemyManager.powerUpManager = this.powerUpManager;
     this.audioManager = new AudioManager();
     this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
-    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
+    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem, this.isLightMode);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
 
     // Active power-up tracking state
@@ -645,32 +645,40 @@ export class GameManager {
       keys: {}
     };
 
-    // Find nearest enemy
+    // Find nearest enemy (only if they are in front of us)
     const enemies = this.enemyManager.getEnemies();
     let nearest = null;
     let minDist = Infinity;
     const pPos = this.playerShip.camera.position;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
 
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e.active || e.dying) continue;
-      const d = pPos.distanceToSquared(e.mesh.position);
-      if (d < minDist) {
-        minDist = d;
-        nearest = e;
+      
+      const dirToEnemy = e.mesh.position.clone().sub(pPos).normalize();
+      const dotProduct = forward.dot(dirToEnemy);
+      
+      // Tight front cone (approx 45 degrees): ignore enemies that fly overhead or past us
+      if (dotProduct > 0.7) {
+        const d = pPos.distanceToSquared(e.mesh.position);
+        if (d < minDist) {
+          minDist = d;
+          nearest = e;
+        }
       }
     }
 
-    let desiredPitch = -0.1;
-    let desiredYaw = 0;
+    let targetPitch = -0.1;
+    let yawError = 0; // Positive means enemy is to the right
 
     if (nearest) {
       // Steer towards enemy roughly
       const dirToEnemy = nearest.mesh.position.clone().sub(pPos).normalize();
       const localTarget = dirToEnemy.clone().applyQuaternion(this.playerShip.camera.quaternion.clone().invert());
       
-      desiredYaw = -localTarget.x * 1.8;
-      desiredPitch = localTarget.y * 1.8;
+      yawError = localTarget.x;
+      targetPitch = localTarget.y * 1.5;
 
       const screenPos = nearest.mesh.position.clone();
       screenPos.project(this.camera);
@@ -683,38 +691,57 @@ export class GameManager {
           input.isFiring = () => true;
         }
       }
+    } else {
+      // Idle wander: gentle snaking motion when no enemies are around to keep it looking alive
+      const time = performance.now() * 0.001;
+      yawError = Math.sin(time * 0.6) * 0.15;
+      targetPitch = (Math.sin(time * 0.4) * 0.1) - 0.1;
+      
+      input.mouse.x = window.innerWidth / 2;
+      input.mouse.y = window.innerHeight / 2;
     }
 
     // Terrain avoidance (look ahead)
     const futurePos = pPos.clone();
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
     futurePos.addScaledVector(forward, 800);
     const terrainH = this.terrain.getHeightAt(futurePos.x, futurePos.z);
     
-    if (futurePos.y < terrainH + 300) {
-      desiredPitch += 1.5; // pull up hard
+    // Keep altitude low enough and maintain decent flight level
+    if (pPos.y > 1200) {
+      targetPitch -= 0.6; // Push down more aggressively if too high
+    } else if (pPos.y > 600) {
+      targetPitch -= 0.2; // Gentle push down to stay low
     }
 
-    // Keep altitude low enough
-    if (pPos.y > 1500) {
-      desiredPitch -= 0.5;
+    if (futurePos.y < terrainH + 400) {
+      targetPitch = 0.5; // CRITICAL: Force nose up to avoid terrain, overriding any enemy dives
     }
 
-    desiredPitch = Math.max(-1, Math.min(1, desiredPitch));
-    desiredYaw = Math.max(-1, Math.min(1, desiredYaw));
+    // Absolutely prevent stalling by clamping target pitch (stall is 0.8)
+    // We MUST allow positive pitch so the ship can climb over mountains!
+    targetPitch = Math.max(-0.6, Math.min(0.5, targetPitch));
 
-    // Smooth flight motion (less jittery)
-    if (typeof this.autoPitch === 'undefined') {
-      this.autoPitch = 0;
-      this.autoYaw = 0;
+    // Auto recover if currently stalled
+    if (this.playerShip.isStalled) {
+      input.keys.Control = true;
+      targetPitch = -0.5;
+    }
+
+    // Proportional control for smooth steering
+    const pitchError = targetPitch - this.playerShip.pitch;
+
+    if (typeof this.autoYawDelta === 'undefined') {
+      this.autoPitchDelta = 0;
+      this.autoYawDelta = 0;
     }
     
-    this.autoPitch += (desiredPitch - this.autoPitch) * 0.08;
-    this.autoYaw += (desiredYaw - this.autoYaw) * 0.08;
+    // Smooth the inputs
+    this.autoPitchDelta += (pitchError - this.autoPitchDelta) * 0.1;
+    this.autoYawDelta += (yawError - this.autoYawDelta) * 0.1;
 
     // Convert desired steering into mock mouse movements (desktop flight uses these)
-    input.mouse.movementX = -this.autoYaw / 0.0028 * 0.05;
-    input.mouse.movementY = -this.autoPitch / 0.0028 * 0.05;
+    input.mouse.movementY = -this.autoPitchDelta / 0.0028 * 0.08;
+    input.mouse.movementX = this.autoYawDelta / 0.0028 * 0.15; // Stronger yaw tracking
 
     return input;
   }
@@ -892,6 +919,10 @@ export class GameManager {
     }
 
     // 5. Update game entities (applying slow-mo actualDelta)
+    if (this.isAutoplay) {
+      this.playerShip.stallTimer = 0;
+      this.playerShip.isStalled = false;
+    }
     this.playerShip.update(actualDelta, activeInput, this.terrain, false);
     
     // Copy lightning flash factor to terrain shader

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export class WeaponSystem {
-  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null) {
+  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null, isLightMode = false) {
     this.scene = scene;
     this.camera = camera;
     this.enemyManager = enemyManager;
@@ -10,6 +10,7 @@ export class WeaponSystem {
     this.audioManager = audioManager;
     this.terrain = terrain;
     this.particleSystem = particleSystem;
+    this.isLightMode = isLightMode;
 
     // Charge system
     this.maxCharge = 70;
@@ -84,7 +85,7 @@ export class WeaponSystem {
 
     // Shared Materials for performance
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(4.5, 1.8, 0.0), // HDR Orange for UnrealBloomPass faked glow
+      color: this.isLightMode ? new THREE.Color(0.0, 1.0, 4.5) : new THREE.Color(4.5, 1.8, 0.0), // HDR Blue or Orange
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,

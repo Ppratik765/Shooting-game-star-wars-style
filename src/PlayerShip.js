@@ -11,7 +11,7 @@ export class PlayerShip {
     this.velocity = new THREE.Vector3(0, 0, -140);
     const rx = (Math.random() - 0.5) * 10000;
     const rz = (Math.random() - 0.5) * 10000;
-    this.camera.position.set(rx, 480, rz);
+    this.camera.position.set(rx, 500, rz);
     this.isAboveMaxAlt = false;
 
     this.minThrottle = 60;
