@@ -1149,7 +1149,7 @@ export class UIManager {
     const scanlinesInput = document.getElementById('setting-scanlines');
     const crtScanlines = document.getElementById('crt-scanlines');
     if (scanlinesInput) {
-      const scanlinesEnabled = localStorage.getItem('setting_scanlines') !== 'false';
+      const scanlinesEnabled = localStorage.getItem('setting_scanlines') === 'true'; // Default to false
       scanlinesInput.checked = scanlinesEnabled;
       if (crtScanlines) {
         crtScanlines.style.display = scanlinesEnabled ? 'block' : 'none';
