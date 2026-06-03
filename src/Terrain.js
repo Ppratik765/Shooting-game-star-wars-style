@@ -159,7 +159,8 @@ export class Terrain {
         uActualCamZ:  { value: 0 },
         uMaxRadius:   { value: this.maxRadius },
         uFadeStart:   { value: this.fadeStart },
-        uLightning:   { value: 0.0 }
+        uLightning:   { value: 0.0 },
+        uLightMode:   { value: 0.0 }
       },
       vertexShader: /* glsl */`
         uniform float uNoiseScale, uHeightScale, uCamX, uCamZ, uActualCamX, uActualCamZ;
@@ -271,6 +272,7 @@ export class Terrain {
         uniform float uHeightScale;
         uniform float uMaxRadius, uFadeStart;
         uniform float uLightning;
+        uniform float uLightMode;
 
         void main(){
           vec2 c = 2.0 * gl_PointCoord - 1.0;
@@ -294,11 +296,18 @@ export class Terrain {
           else if(t < 0.70) col = mix(slopeCol,  ridgeCol,  (t - 0.45) / 0.25);
           else if(t < 0.88) col = mix(ridgeCol,  peakCol,   (t - 0.70) / 0.18);
           else              col = mix(peakCol,   vec3(0.70, 0.73, 0.78), (t - 0.88) / 0.12); // Bright cool white accent
+          
+          if (uLightMode > 0.5) {
+            col *= 0.35; // Darken the terrain significantly to make it stand out against the ivory sky
+          }
 
+          // Lightning flashes (white out)
+          col = mix(col, vec3(1.0, 1.0, 1.0), uLightning * 0.95);
+          
           float distFade = clamp(1.0 - vDist / 2800.0, 0.12, 1.0);
           col *= distFade;
 
-          vec3 fogColor = vec3(0.01, 0.03, 0.10); // Slight blue atmospheric space fog
+          vec3 fogColor = uLightMode > 0.5 ? vec3(0.996, 0.98, 0.878) : vec3(0.01, 0.03, 0.10); // Slight blue atmospheric space fog or light mode ivory #fefae0
           float fogFactor = smoothstep(1200.0, 2600.0, vDist);
           col = mix(col, fogColor, fogFactor);
 

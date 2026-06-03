@@ -44,13 +44,15 @@ function createCircularGlowTexture(colorHex, coreColorHex = '#ffffff') {
 }
 
 export class GameManager {
-  constructor(scene, camera, isMobile = false) {
+  constructor(scene, camera, isMobile = false, isAutoplay = false, isLightMode = false) {
     this.scene = scene;
     this.camera = camera;
     this.isDead = false;
     this.isPaused = false;
     this.isStarted = false;
     this.isMobile = isMobile;
+    this.isAutoplay = isAutoplay;
+    this.isLightMode = isLightMode;
 
     this.state = { timeSurvived: 0, kills: 0 };
 
@@ -369,6 +371,14 @@ export class GameManager {
       title.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     };
     document.addEventListener('mousemove', this._parallaxHandler);
+
+    if (this.isAutoplay) {
+      this._finishIntro();
+      this.isStarted = true;
+      this.uiManager.startGame();
+      this.state.timeSurvived = 0;
+      if (this.audioManager) this.audioManager.resume();
+    }
   }
 
   _createStarfield() {
@@ -409,6 +419,12 @@ export class GameManager {
         colors[i * 3 + 1] = brightness;
         colors[i * 3 + 2] = brightness;
       }
+      
+      if (this.isLightMode) {
+        colors[i * 3] = 0;
+        colors[i * 3 + 1] = 0;
+        colors[i * 3 + 2] = 0;
+      }
     }
 
     const starGeom = new THREE.BufferGeometry();
@@ -416,10 +432,10 @@ export class GameManager {
     starGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const starMat = new THREE.PointsMaterial({
-      size: 2.3, // Smaller star points
+      size: this.isLightMode ? 3.5 : 2.3, // Larger star points in light mode
       vertexColors: true,
       transparent: true,
-      opacity: 0.8, // Softer background blending
+      opacity: this.isLightMode ? 1.0 : 0.8, // Fully opaque in light mode
       sizeAttenuation: false,  // constant size regardless of distance
       fog: false
     });
@@ -611,6 +627,98 @@ export class GameManager {
     }
   }
 
+  _getAutopilotInput() {
+    const input = {
+      pitch: 0,
+      yaw: 0,
+      roll: 0,
+      throttle: 1, // Full speed forward
+      mouse: { x: window.innerWidth / 2, y: window.innerHeight / 2, movementX: 0, movementY: 0 },
+      isFiring: () => false,
+      isLocking: () => false,
+      isBoosting: () => false,
+      isForward: () => false,
+      isBackward: () => false,
+      isLeft: () => false,
+      isRight: () => false,
+      isMobile: false,
+      keys: {}
+    };
+
+    // Find nearest enemy
+    const enemies = this.enemyManager.getEnemies();
+    let nearest = null;
+    let minDist = Infinity;
+    const pPos = this.playerShip.camera.position;
+
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e.active || e.dying) continue;
+      const d = pPos.distanceToSquared(e.mesh.position);
+      if (d < minDist) {
+        minDist = d;
+        nearest = e;
+      }
+    }
+
+    let desiredPitch = -0.1;
+    let desiredYaw = 0;
+
+    if (nearest) {
+      // Steer towards enemy roughly
+      const dirToEnemy = nearest.mesh.position.clone().sub(pPos).normalize();
+      const localTarget = dirToEnemy.clone().applyQuaternion(this.playerShip.camera.quaternion.clone().invert());
+      
+      desiredYaw = -localTarget.x * 1.8;
+      desiredPitch = localTarget.y * 1.8;
+
+      const screenPos = nearest.mesh.position.clone();
+      screenPos.project(this.camera);
+      input.mouse.x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+      input.mouse.y = (-(screenPos.y) * 0.5 + 0.5) * window.innerHeight;
+      
+      // Fire if enemy is somewhat centered (add random burstiness to feel more human)
+      if (localTarget.z < 0 && Math.abs(localTarget.x) < 0.25 && Math.abs(localTarget.y) < 0.25) {
+        if (Math.random() < 0.7) {
+          input.isFiring = () => true;
+        }
+      }
+    }
+
+    // Terrain avoidance (look ahead)
+    const futurePos = pPos.clone();
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
+    futurePos.addScaledVector(forward, 800);
+    const terrainH = this.terrain.getHeightAt(futurePos.x, futurePos.z);
+    
+    if (futurePos.y < terrainH + 300) {
+      desiredPitch += 1.5; // pull up hard
+    }
+
+    // Keep altitude low enough
+    if (pPos.y > 1500) {
+      desiredPitch -= 0.5;
+    }
+
+    desiredPitch = Math.max(-1, Math.min(1, desiredPitch));
+    desiredYaw = Math.max(-1, Math.min(1, desiredYaw));
+
+    // Smooth flight motion (less jittery)
+    if (typeof this.autoPitch === 'undefined') {
+      this.autoPitch = 0;
+      this.autoYaw = 0;
+    }
+    
+    this.autoPitch += (desiredPitch - this.autoPitch) * 0.08;
+    this.autoYaw += (desiredYaw - this.autoYaw) * 0.08;
+
+    // Convert desired steering into mock mouse movements (desktop flight uses these)
+    input.mouse.movementX = -this.autoYaw / 0.0028 * 0.05;
+    input.mouse.movementY = -this.autoPitch / 0.0028 * 0.05;
+
+    return input;
+  }
+
   update(deltaTime, currentTime) {
     if (this.isPaused) {
       this.inputController.consumeMovement();
@@ -635,8 +743,14 @@ export class GameManager {
       isSlowMo = true;
     }
 
+    const activeInput = this.isAutoplay ? this._getAutopilotInput() : this.inputController;
+
     // Consume accumulated input — cap mouse deltas before any physics
-    this.inputController.consumeMovement();
+    if (!this.isAutoplay) {
+      this.inputController.consumeMovement();
+    } else {
+      this.playerShip.hp = this.playerShip.maxHp; // Lock HP
+    }
 
     // 2. Automated Intro Cinematic sequence
     if (!this.isStarted) {
@@ -670,10 +784,10 @@ export class GameManager {
         }
       }
 
-      this.playerShip.update(deltaTime, this.inputController, this.terrain, true); // true = isIntro
+      this.playerShip.update(deltaTime, activeInput, this.terrain, true); // true = isIntro
       this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
       this.skyGroup.position.copy(this.playerShip.camera.position);
-      this.inputController.clearDeltas();
+      if (!this.isAutoplay) this.inputController.clearDeltas();
       return;
     }
 
@@ -717,29 +831,39 @@ export class GameManager {
     const colorRedOrange = new THREE.Color(0x3d1201); // slightly more vibrant sunset rust
     const currentSkyColor = new THREE.Color();
 
-    if (time < 75) {
-      // Minute 0 to 1:15 - Keep sky black
-      currentSkyColor.copy(colorBlack);
-      this.lightningFlashTimer = 0;
-    } else if (time < 150) {
-      // Minute 1:15 to 2:30 - Transition to blue and trigger slight lightning (Delayed by 15s)
-      const u = (time - 75) / 75;
-      currentSkyColor.lerpColors(colorBlack, colorBlue, u);
-
-      if (time > this.nextLightningTime) {
-        this.lightningFlashTimer = 0.07;
-        this.nextLightningTime = time + 10.0 + Math.random() * 8.0;
-        this._triggerLightningStrike();
+    if (this.isLightMode) {
+      currentSkyColor.setHex(0xfefae0);
+      if (this.scene.fog) {
+        this.scene.fog.color.setHex(0xfefae0);
+      }
+      if (this.terrain.material && this.terrain.material.uniforms.uLightMode) {
+        this.terrain.material.uniforms.uLightMode.value = 1.0;
       }
     } else {
-      // Minute 2:30+ - Transition to red/orange/yellow and trigger extreme lightning
-      const u = Math.min(1.0, (time - 150) / 60);
-      currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
-
-      if (time > this.nextLightningTime) {
-        this.lightningFlashTimer = 0.07;
-        this.nextLightningTime = time + 2.0 + Math.random() * 3.5;
-        this._triggerLightningStrike();
+      if (time < 75) {
+        // Minute 0 to 1:15 - Keep sky black
+        currentSkyColor.copy(colorBlack);
+        this.lightningFlashTimer = 0;
+      } else if (time < 150) {
+        // Minute 1:15 to 2:30 - Transition to blue and trigger slight lightning (Delayed by 15s)
+        const u = (time - 75) / 75;
+        currentSkyColor.lerpColors(colorBlack, colorBlue, u);
+  
+        if (time > this.nextLightningTime) {
+          this.lightningFlashTimer = 0.07;
+          this.nextLightningTime = time + 10.0 + Math.random() * 8.0;
+          this._triggerLightningStrike();
+        }
+      } else {
+        // Minute 2:30+ - Transition to red/orange/yellow and trigger extreme lightning
+        const u = Math.min(1.0, (time - 150) / 60);
+        currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
+  
+        if (time > this.nextLightningTime) {
+          this.lightningFlashTimer = 0.07;
+          this.nextLightningTime = time + 2.0 + Math.random() * 3.5;
+          this._triggerLightningStrike();
+        }
       }
     }
 
@@ -768,7 +892,7 @@ export class GameManager {
     }
 
     // 5. Update game entities (applying slow-mo actualDelta)
-    this.playerShip.update(actualDelta, this.inputController, this.terrain, false);
+    this.playerShip.update(actualDelta, activeInput, this.terrain, false);
     
     // Copy lightning flash factor to terrain shader
     if (this.terrain.material && this.terrain.material.uniforms.uLightning) {
@@ -832,7 +956,7 @@ export class GameManager {
     const weaponInput = this.playerShip.isStalled ? {
       isFiring: () => false,
       isLocking: () => false
-    } : this.inputController;
+    } : activeInput;
     this.weaponSystem.update(actualDelta, weaponInput, currentTime, this.playerShip.velocity);
     this.particleSystem.update(actualDelta, this.terrain);
     this.speedLines.update(actualDelta, this.playerShip.isBoosting);
@@ -848,7 +972,7 @@ export class GameManager {
     this.audioManager.updateFlyby(actualDelta, this.enemyManager.getEnemies(), this.playerShip.camera.position);
 
     // UI Updates
-    this.uiManager.setCrosshairTarget(this.inputController.mouse.x, this.inputController.mouse.y);
+    this.uiManager.setCrosshairTarget(activeInput.mouse.x, activeInput.mouse.y);
     this.uiManager.update(
       actualDelta,
       this.playerShip.getState(),
@@ -862,7 +986,7 @@ export class GameManager {
     const activePowerUps = this.powerUpManager ? this.powerUpManager.pool.filter(item => item.active) : [];
     this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies(), this.weaponSystem.lockedEnemy, activePowerUps);
 
-    this.inputController.clearDeltas();
+    if (!this.isAutoplay) this.inputController.clearDeltas();
 
     this._checkPlayerCollisions();
     this._checkDeathConditions();
@@ -902,6 +1026,8 @@ export class GameManager {
   }
 
   _checkDeathConditions() {
+    if (this.isAutoplay) return;
+
     if (this.playerShip.terrainCrashed) {
       this._startDeathSequence('TERRAIN IMPACT — SHIP DESTROYED');
       return;
