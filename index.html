@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Vector Squadron</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <div id="start-screen">
+    <div class="start-title">VECTOR<br>SQUADRON</div>
+    <button id="btn-lets-play" class="start-btn">LET'S PLAY</button>
+    <button id="btn-how-to-play" class="start-btn secondary">HOW TO PLAY</button>
+  </div>
+
+  <div id="how-to-play-modal" style="display: none;">
+    <div class="modal-content"
+      style="max-width: 800px; padding: 15px; display: flex; flex-direction: column; align-items: center; max-height: 95vh; overflow-y: auto;">
+      <img src="/src/assets/Instructions.png" alt="How to Play"
+        style="max-width: 100%; max-height: 70vh; object-fit: contain; display: block; border-radius: 4px;">
+      <button id="btn-close-modal" class="start-btn"
+        style="margin: 15px auto 0; display: block; flex-shrink: 0;">BACK</button>
+    </div>
+  </div>
+
+  <div id="ui-layer">
+    <button id="settings-btn" aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    </button>
+
+    <div id="settings-menu">
+      <!-- Desktop tactical settings menu -->
+      <div id="settings-content-desktop" class="desktop-settings-only">
+        <div id="settings-title">TACTICAL SETTINGS</div>
+        <div class="settings-divider"></div>
+        
+        <div class="settings-group">
+          <div class="settings-group-title">[ FLIGHT OPTIONS ]</div>
+          <div class="settings-row">
+            <label>Mouse Sensitivity</label>
+            <div class="slider-container">
+              <input type="range" id="setting-mouse-sensitivity" min="0.1" max="3.0" step="0.1" value="1.0" class="retro-slider">
+              <span id="value-mouse-sensitivity" class="slider-value">1.0</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Invert Flight Y-Axis</label>
+            <input type="checkbox" id="setting-invert-y" class="retro-checkbox">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ VISUAL AESTHETICS ]</div>
+          <div class="settings-row">
+            <label>CRT Scanlines</label>
+            <input type="checkbox" id="setting-scanlines" class="retro-checkbox">
+          </div>
+          <div class="settings-row">
+            <label>Screen Shake Intensity</label>
+            <div class="slider-container">
+              <input type="range" id="setting-shake" min="0" max="100" step="5" value="80" class="retro-slider">
+              <span id="value-shake" class="slider-value">80%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ AUDIO MIXER ]</div>
+          <div class="settings-row">
+            <label>Master Volume</label>
+            <div class="slider-container">
+              <input type="range" id="setting-master-volume" min="0" max="100" step="5" value="90" class="retro-slider">
+              <span id="value-master-volume" class="slider-value">90%</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Engine Cabin Hum</label>
+            <div class="slider-container">
+              <input type="range" id="setting-engine-hum" min="0" max="100" step="5" value="30" class="retro-slider">
+              <span id="value-engine-hum" class="slider-value">30%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">[ KEYBINDINGS ]</div>
+          <div class="keybind-grid">
+            <div class="keybind-item">
+              <span>Boost:</span>
+              <button id="bind-boost" class="keybind-btn">Shift</button>
+            </div>
+            <div class="keybind-item">
+              <span>Fire:</span>
+              <button id="bind-fire" class="keybind-btn">Space</button>
+            </div>
+            <div class="keybind-item">
+              <span>Pitch Down:</span>
+              <button id="bind-pitchDown" class="keybind-btn">W</button>
+            </div>
+            <div class="keybind-item">
+              <span>Pitch Up:</span>
+              <button id="bind-pitchUp" class="keybind-btn">S</button>
+            </div>
+            <div class="keybind-item">
+              <span>Roll Left:</span>
+              <button id="bind-rollLeft" class="keybind-btn">A</button>
+            </div>
+            <div class="keybind-item">
+              <span>Roll Right:</span>
+              <button id="bind-rollRight" class="keybind-btn">D</button>
+            </div>
+          </div>
+        </div>
+
+        <button id="save-button" class="settings-btn" style="width: 100%; margin-top: 15px;">[ SAVE & RETURN TO COCKPIT ]</button>
+      </div>
+
+      <!-- Mobile calibration settings menu -->
+      <div id="settings-content-mobile" class="mobile-settings-only">
+        <div id="settings-title">TACTICAL SETTINGS</div>
+        <div class="settings-divider"></div>
+        <button id="calibrate-button" class="settings-btn">CALIBRATE SCREEN</button>
+        <button id="resume-button" class="settings-btn">BACK TO THE GAME</button>
+      </div>
+    </div>
+
+    <div id="damage-flash"></div>
+
+    <!-- Warning Alerts (center-top) -->
+    <div id="warning-container">
+      <div id="stall-warning" class="warning-text">⚠ STALL ⚠</div>
+      <div id="terrain-warning" class="warning-text">⚠ TERRAIN — PULL UP ⚠</div>
+      <div id="no-charge-warning" class="warning-text charge-warn">NO CHARGE</div>
+      <div id="altitude-warning" class="warning-text">⚠ ALTITUDE TOO HIGH, HULL IS COMPROMISED ⚠</div>
+    </div>
+
+    <div id="compass-container">
+      <div id="compass-strip">S · SW · W · NW · N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S · SW · W · NW ·
+        N · NE · E · SE · S · SW · W · NW · N · NE · E · SE · S · SW · W · NW ·
+        N · NE · E · SE · S</div>
+    </div>
+
+    <div id="hud-top-container">
+      <div id="activity-feed" class="hud-box"></div>
+      <div id="stats-container" class="hud-box">
+        <div class="stat-line">TIME: <span id="stat-time">00:00</span></div>
+        <div class="stat-line">KILLS: <span id="stat-kills">0</span></div>
+        <div class="stat-line">THREAT: <span id="stat-threat">LOW</span></div>
+        <div class="stat-line">ALT: <span id="stat-alt">0</span></div>
+      </div>
+    </div>
+
+    <div id="crosshair">
+      <div class="crosshair-bracket left">[</div>
+      <div class="crosshair-center">+</div>
+      <div class="crosshair-bracket right">]</div>
+    </div>
+
+    <!-- Target Lock Bracket -->
+    <div id="target-lock">
+      <div class="lock-corner tl"></div>
+      <div class="lock-corner tr"></div>
+      <div class="lock-text">LCK</div>
+      <div class="lock-corner bl"></div>
+      <div class="lock-corner br"></div>
+    </div>
+
+    <!-- Tactical Radar -->
+    <div id="radar-container">
+      <div class="radar-grid"></div>
+      <div class="radar-sweep"></div>
+      <div class="radar-player"></div>
+      <div id="radar-blips"></div>
+    </div>
+
+    <!-- Hull meter only (engine/charge now in arc HUD) -->
+    <div id="meters-container">
+      <div class="meter">
+        <div class="meter-label">HULL</div>
+        <div class="meter-bg">
+          <div id="health-bar-fill"></div>
+        </div>
+      </div>
+      <div class="meter" id="stamina-container">
+        <div class="meter-label">ENGINES</div>
+        <div class="meter-bg">
+          <div id="stamina-bar-fill"></div>
+        </div>
+      </div>
+      <div class="meter" id="charge-container">
+        <div class="meter-label">CHARGE</div>
+        <div class="meter-bg">
+          <div id="charge-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="enemy-ui-layer"></div>
+
+    <!-- Boost Vignette (now BLUE) -->
+    <div id="boost-vignette"></div>
+
+    <!-- Shield bubble overlay (faint blue bubble) -->
+    <div id="shield-bubble"></div>
+
+    <!-- Crack Overlay for low hull -->
+    <canvas id="crack-overlay"></canvas>
+
+    <!-- Power-Up UI Timer (SVG Circular Progress Ring) -->
+    <div id="powerup-timer-container" style="display: none;">
+      <svg width="54" height="54" viewBox="0 0 54 54">
+        <circle class="ring-bg" cx="27" cy="27" r="23" />
+        <circle id="powerup-ring-fill" class="ring-fill" cx="27" cy="27" r="23" />
+      </svg>
+      <div id="powerup-timer-label">10.0s</div>
+    </div>
+
+    <!-- CRT Overlay -->
+    <div id="crt-scanlines"></div>
+    <div id="crt-overlay"></div>
+
+    <!-- Weather & Feed Overlays -->
+    <div id="solar-flare-overlay"></div>
+    <div id="killstreak-banner"></div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="game-over-screen">
+    <div id="game-over-content">
+      <div id="game-over-title">SHIP DESTROYED</div>
+      <div id="game-over-static"></div>
+      <div id="game-over-stats">
+        <div class="score-card">
+          <div class="score-main">SURVIVED <span id="go-time">00:00</span> | <span id="go-kills">0</span> KILLS</div>
+          <div class="score-pb">PERSONAL BEST: SURVIVED <span id="pb-time">00:00</span> | <span id="pb-kills">0</span>
+            KILLS</div>
+          <div id="go-tally"></div>
+          <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 15px; width: 100%; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
+        <button id="retry-button" style="margin: 0; flex: 1 1 auto; min-width: 140px;">[ RETRY ]</button>
+        <button id="leaderboard-btn" style="margin: 0; flex: 1 1 auto; min-width: 240px;">[ VIEW LEADERBOARD ]</button>
+      </div>
+
+      <!-- Leaderboard submission form (Personal Best) -->
+      <div id="leaderboard-submit-container" style="display: none;">
+        <div style="color: #00ffaa; font-size: 24px; margin-bottom: 12px; letter-spacing: 2px;">★ NEW GLOBAL HIGHSCORE ★</div>
+        <input type="text" id="leaderboard-alias" placeholder="ENTER CALLSIGN" maxlength="15" autofocus>
+        <button id="btn-submit-score">[ UPLOAD DATA ]</button>
+      </div>
+
+      <!-- Scrollable Leaderboard Table -->
+      <div id="leaderboard-display-container" style="display: none;">
+        <div style="color: #00ffaa; font-size: 28px; letter-spacing: 3px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 10px #00ffaa;">[ GLOBAL SQUADRON RANKS ]</div>
+        <div class="leaderboard-table-wrapper">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>PILOT</th>
+                <th>SYSTEM</th>
+                <th>KILLS</th>
+                <th>TIME</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-rows">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        <button id="btn-close-leaderboard" style="margin-top: 12px;">[ BACK ]</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SVG Chromatic Aberration Filter on Damage -->
+  <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+    <defs>
+      <filter id="chroma-damage">
+        <feOffset in="SourceGraphic" dx="-5" dy="0" result="red"></feOffset>
+        <feOffset in="SourceGraphic" dx="5" dy="0" result="blue"></feOffset>
+        <feColorMatrix in="red" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="redG">
+        </feColorMatrix>
+        <feColorMatrix in="blue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blueG">
+        </feColorMatrix>
+        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
+          result="greenG"></feColorMatrix>
+        <feBlend mode="screen" in="redG" in2="blueG" result="redblue"></feBlend>
+        <feBlend mode="screen" in="redblue" in2="greenG"></feBlend>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Custom Neon Modal Dialog -->
+  <div id="custom-dialog-overlay" style="display: none;">
+    <div id="custom-dialog-content">
+      <div id="custom-dialog-title">ALERT</div>
+      <div id="custom-dialog-message">Message goes here.</div>
+      <div id="custom-dialog-buttons">
+        <button id="custom-dialog-btn-ok" class="dialog-btn">[ OK ]</button>
+        <button id="custom-dialog-btn-cancel" class="dialog-btn cancel" style="display: none;">[ CANCEL ]</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="watermark"
+    style="position: fixed; bottom: 5px; right: 5px; font-size: 12px; color: rgba(255, 255, 255, 0.3); z-index: 1000; pointer-events: none; font-family: 'VT323', monospace;">
+    Made by Priyanshu</div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
