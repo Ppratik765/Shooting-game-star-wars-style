@@ -84,7 +84,7 @@ export class GameManager {
     this.killCamExplosionPos = null;
 
     this.uiManager = new UIManager();
-    this.inputController = new InputController();
+    this.inputController = new InputController(this.isAutoplay);
     this.playerShip = new PlayerShip(this.camera);
 
     // Reusable temp structures to avoid garbage collection
@@ -378,6 +378,23 @@ export class GameManager {
       this.uiManager.startGame();
       this.state.timeSurvived = 0;
       if (this.audioManager) this.audioManager.resume();
+
+      // Suppress Mobile UI
+      const targetIds = ['mobile-controls', 'joystick-left', 'joystick-right', 'fire-button', 'ui-container'];
+      targetIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.setProperty('display', 'none', 'important');
+        }
+      });
+      // Aggressively hide via CSS to prevent elements added dynamically from showing
+      const style = document.createElement('style');
+      style.innerHTML = `
+        #mobile-controls, #joystick-left, #joystick-right, #fire-button, #ui-container {
+          display: none !important;
+        }
+      `;
+      document.head.appendChild(style);
     }
   }
 

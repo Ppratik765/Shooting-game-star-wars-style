@@ -639,16 +639,7 @@ html, body {
   }
 }
 
-@media (max-width: 1024px) and (orientation: portrait) {
-  /* All game UI hidden in portrait — landscape prompt takes over */
-  #landscape-prompt { display: flex; }
-  #ui-layer, #app { display: none; }
-}
-
-@media (max-width: 1024px) and (orientation: landscape) {
-  #landscape-prompt { display: none; }
-  #ui-layer, #app { display: block; }
-}
+/* Orientation restrictions removed to allow portrait mode rendering */
 
 /* === Start Screen === */
 #start-screen {

@@ -65,19 +65,30 @@ if (useComposer) {
 const gameManager = new GameManager(scene, camera, isMobile, isAutoplay, isLightMode);
 
 // Resize
+function triggerResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+}
+
 let resizePending = false;
-window.addEventListener('resize', () => {
+const handleResize = () => {
   if (resizePending) return;
   resizePending = true;
   requestAnimationFrame(() => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    if (composer) composer.setSize(w, h);
+    triggerResize();
     resizePending = false;
   });
+};
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => {
+  handleResize();
+  setTimeout(handleResize, 100);
+  setTimeout(handleResize, 300);
 });
 
 // Game loop

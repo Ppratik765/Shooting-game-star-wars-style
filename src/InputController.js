@@ -1,5 +1,6 @@
 export class InputController {
-  constructor() {
+  constructor(isAutoplay = false) {
+    this.isAutoplay = isAutoplay;
     this.keys = {};
 
     // Load settings from localStorage
@@ -71,7 +72,7 @@ export class InputController {
     this.mobileBoost = false;
 
     this._initListeners();
-    if (this.isMobile) {
+    if (this.isMobile && !this.isAutoplay) {
       this._initMobileUI();
       this._initGyro();
     }
@@ -275,6 +276,9 @@ export class InputController {
     } else if (orientation === -90 || orientation === 270) {
       tiltPitch = diffGamma;
       tiltRoll = diffBeta;
+    } else if (orientation === 0 || orientation === 180) {
+      tiltPitch = diffBeta;
+      tiltRoll = -diffGamma;
     } else {
       tiltPitch = -diffGamma;
       tiltRoll = -diffBeta;
@@ -342,7 +346,7 @@ export class InputController {
 
     // One-shot fullscreen on first mobile interaction
     const triggerFS = () => {
-      if (!this.isMobile) return;
+      if (!this.isMobile || this.isAutoplay) return;
       window.removeEventListener('touchstart', triggerFS);
       window.removeEventListener('click', triggerFS);
       const docEl = document.documentElement;
@@ -358,8 +362,10 @@ export class InputController {
         if (req) req.call(docEl).catch(() => { });
       }
     };
-    window.addEventListener('touchstart', triggerFS, { passive: true });
-    window.addEventListener('click', triggerFS, { passive: true });
+    if (!this.isAutoplay) {
+      window.addEventListener('touchstart', triggerFS, { passive: true });
+      window.addEventListener('click', triggerFS, { passive: true });
+    }
   }
 
   /**
