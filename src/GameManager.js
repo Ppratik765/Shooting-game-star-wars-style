@@ -859,12 +859,23 @@ export class GameManager {
     const currentSkyColor = new THREE.Color();
 
     if (this.isLightMode) {
-      currentSkyColor.setHex(0xfefae0);
+      // 1. Change the sky and fog to Powder Petal
+      currentSkyColor.setHex(0xefd9ce); 
       if (this.scene.fog) {
-        this.scene.fog.color.setHex(0xfefae0);
+        this.scene.fog.color.setHex(0xefd9ce);
       }
-      if (this.terrain.material && this.terrain.material.uniforms.uLightMode) {
-        this.terrain.material.uniforms.uLightMode.value = 1.0;
+      
+      // 2. Change the terrain wireframe to Medium Slate Blue
+      if (this.terrain && this.terrain.material) {
+        this.terrain.material.wireframe = true;
+        
+        if (this.terrain.material.color) {
+            this.terrain.material.color.setHex(0x7161ef);
+        } else if (this.terrain.material.uniforms) {
+            if (this.terrain.material.uniforms.color) {
+                this.terrain.material.uniforms.color.value.setHex(0x7161ef);
+            }
+        }
       }
     } else {
       if (time < 75) {
