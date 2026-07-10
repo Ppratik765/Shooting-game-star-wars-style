@@ -23,7 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
-scratch
 
 # Rust / WebAssembly build artifacts
 core-engine/target/
