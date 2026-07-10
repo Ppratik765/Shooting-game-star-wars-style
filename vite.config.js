@@ -246,6 +246,9 @@ export default defineConfig(({ mode }) => {
     ],
     optimizeDeps: {
       exclude: ['core-engine']
+    },
+    build: {
+      target: 'esnext'
     }
   };
 });

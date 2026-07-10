@@ -11,6 +11,8 @@
     "wasm:dev": "npm run wasm:build && npm run dev"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
+    "rollup": "^4.62.2",
     "vite": "^8.0.12",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0"
