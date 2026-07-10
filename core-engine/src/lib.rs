@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use glam::Vec3;
+use glam::{Vec3, Quat, EulerRot};
 
 /// Core flight physics engine for the wireframe shooter.
 /// Holds all numerical state — never touches DOM or JS objects.
@@ -173,12 +173,31 @@ impl GameEngine {
         }
     }
 
-    pub fn tick(&mut self, dt: f32, input: &InputState, _terrain_height: f32, _is_intro: bool) -> bool {
+    pub fn tick(&mut self, dt: f32, input: &InputState, terrain_height: f32, is_intro: bool) -> bool {
         self.shake_triggered_this_frame = false;
         
-        // Placeholder for full logic (will add in Commit 4)
-        // For now, implement just the input handling
-        self.handle_input(dt, input);
+        if self.is_dying {
+            self.update_dying(dt);
+            self.update_shake(dt);
+            self.check_terrain(terrain_height, dt);
+        } else if self.terrain_crashed {
+            // do nothing
+        } else if is_intro {
+            self.pitch = lerp(self.pitch, 0.0, 2.0 * dt);
+            self.roll = lerp(self.roll, 0.0, 2.0 * dt);
+            self.throttle = if input.is_mobile { 125.0 } else { 140.0 };
+            self.target_fov = self.base_fov;
+            self.update_stamina(dt);
+            self.apply_physics(dt);
+            self.pos.y = lerp(self.pos.y, 350.0, 4.0 * dt);
+        } else {
+            self.handle_input(dt, input);
+            self.update_stamina(dt);
+            self.update_stall(dt, input);
+            self.apply_physics(dt);
+            self.update_shake(dt);
+            self.check_terrain(terrain_height, dt);
+        }
         
         self.write_buffers();
         self.shake_triggered_this_frame
@@ -203,6 +222,45 @@ impl GameEngine {
         self.shake_timer = self.shake_duration;
         self.shake_intensity = intensity * self.shake_intensity_scale;
         self.shake_triggered_this_frame = true;
+    }
+
+    pub fn die(&mut self) {
+        if self.is_dying { return; }
+        self.is_dying = true;
+        self.die_from_high = self.altitude > 800.0;
+        self.velocity.y -= if self.die_from_high { 250.0 } else { 80.0 };
+    }
+
+    pub fn reset(&mut self) {
+        // Assume reset spawns with random x and z which JS can set afterwards or we just 0 them out here
+        // JS normally does rx = (Math.random() - 0.5) * 10000; We will let JS reset position via a JS wrapper method
+        self.pitch = 0.0;
+        self.yaw = 0.0;
+        self.roll = 0.0;
+        self.velocity = Vec3::new(0.0, 0.0, -140.0);
+        self.throttle = 140.0;
+        self.stamina = self.max_stamina;
+        self.stamina_depleted = false;
+        self.is_boosting = false;
+        self.was_boosting = false;
+        self.is_stalled = false;
+        self.stall_recovery_progress = 0.0;
+        self.prev_control_pressed = false;
+        self.is_dying = false;
+        self.die_from_high = false;
+        self.stall_timer = 0.0;
+        self.terrain_warning = false;
+        self.terrain_crashed = false;
+        self.hp = self.max_hp;
+        self.target_fov = self.base_fov;
+        self.altitude = 200.0;
+        self.shake_timer = 0.0;
+        self.infinite_engines_active = false;
+        self.shield_active = false;
+    }
+
+    pub fn set_pos(&mut self, x: f32, y: f32, z: f32) {
+        self.pos = Vec3::new(x, y, z);
     }
 }
 
@@ -286,6 +344,112 @@ impl GameEngine {
         
         self.was_boosting = input.is_boosting && !self.stamina_depleted;
         self.pitch = self.pitch.clamp(-1.4, 1.4);
+    }
+
+    fn update_stamina(&mut self, dt: f32) {
+        if self.is_boosting {
+            if !self.infinite_engines_active {
+                self.stamina -= self.stamina_drain_rate * dt;
+            }
+            if self.stamina <= 0.0 {
+                self.stamina = 0.0;
+                self.stamina_depleted = true;
+                self.is_boosting = false;
+            }
+        } else {
+            self.stamina += self.stamina_regen_rate * dt;
+            if self.stamina >= self.max_stamina {
+                self.stamina = self.max_stamina;
+            }
+            if self.stamina_depleted && self.stamina > self.max_stamina * 0.2 {
+                self.stamina_depleted = false;
+            }
+        }
+    }
+
+    fn update_stall(&mut self, dt: f32, input: &InputState) {
+        if self.pitch > self.stall_pitch_threshold {
+            self.stall_timer += dt;
+            if self.stall_timer >= self.stall_time_required {
+                if !self.is_stalled {
+                    self.is_stalled = true;
+                    self.stall_recovery_progress = 0.0;
+                }
+            }
+        } else {
+            self.stall_timer = (self.stall_timer - dt * 2.0).max(0.0);
+            if input.is_mobile {
+                if self.pitch < 0.3 {
+                    self.is_stalled = false;
+                }
+            }
+        }
+
+        if self.is_stalled {
+            if !input.is_mobile {
+                if input.is_stalled_recovery_key && !self.prev_control_pressed {
+                    self.stall_recovery_progress += 15.0;
+                    self.trigger_shake(0.5);
+                }
+                self.prev_control_pressed = input.is_stalled_recovery_key;
+
+                self.stall_recovery_progress = (self.stall_recovery_progress - 15.0 * dt).max(0.0);
+
+                if self.stall_recovery_progress >= 100.0 {
+                    self.is_stalled = false;
+                    self.stall_recovery_progress = 0.0;
+                }
+            }
+        } else {
+            self.prev_control_pressed = false;
+        }
+    }
+
+    fn apply_physics(&mut self, dt: f32) {
+        // glam::EulerRot::YXZ treats yaw as Y, pitch as X, roll as Z.
+        // We use -1.0 on Z for forward vector.
+        let euler_quat = Quat::from_euler(EulerRot::YXZ, self.yaw, self.pitch, self.roll);
+        let forward = euler_quat * Vec3::new(0.0, 0.0, -1.0);
+        let target_velocity = forward * self.throttle;
+        
+        self.velocity = self.velocity.lerp(target_velocity, 6.0 * dt);
+        self.velocity.y += self.gravity * dt;
+        
+        self.pos += self.velocity * dt;
+    }
+
+    fn update_shake(&mut self, dt: f32) {
+        if self.shake_timer > 0.0 {
+            self.shake_timer -= dt;
+        }
+    }
+
+    fn check_terrain(&mut self, terrain_height: f32, dt: f32) {
+        self.altitude = self.pos.y - terrain_height;
+        self.terrain_warning = self.altitude < 60.0;
+        self.is_above_max_alt = self.pos.y > 1500.0;
+        if self.is_above_max_alt {
+            self.hp -= 5.0 * dt;
+        }
+        if self.altitude < 2.0 {
+            self.terrain_crashed = true;
+        }
+    }
+
+    fn update_dying(&mut self, dt: f32) {
+        let speed_mult = if self.die_from_high { 3.5 } else { 1.2 };
+        let target_pitch = -std::f32::consts::FRAC_PI_2;
+        self.pitch = lerp(self.pitch, target_pitch, 3.0 * speed_mult * dt);
+        self.roll += 6.0 * speed_mult * dt;
+        self.velocity.y -= 800.0 * speed_mult * dt;
+
+        let euler_quat = Quat::from_euler(EulerRot::YXZ, self.yaw, self.pitch, self.roll);
+        let forward = euler_quat * Vec3::new(0.0, 0.0, -1.0);
+        let target_throttle = self.throttle * if self.die_from_high { 3.0 } else { 1.5 };
+        let target_velocity = forward * target_throttle;
+        
+        self.velocity = self.velocity.lerp(target_velocity, 3.5 * dt);
+        self.pos += self.velocity * dt;
     }
 
     /// Write current state into the shared memory buffers.
