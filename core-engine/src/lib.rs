@@ -262,6 +262,38 @@ impl GameEngine {
     pub fn set_pos(&mut self, x: f32, y: f32, z: f32) {
         self.pos = Vec3::new(x, y, z);
     }
+
+    pub fn set_hp(&mut self, value: f32) {
+        self.hp = value.clamp(0.0, self.max_hp);
+    }
+
+    pub fn set_shield_active(&mut self, active: bool) {
+        self.shield_active = active;
+    }
+
+    pub fn set_infinite_engines_active(&mut self, active: bool) {
+        self.infinite_engines_active = active;
+    }
+
+    pub fn set_stall_timer(&mut self, value: f32) {
+        self.stall_timer = value;
+    }
+
+    pub fn set_is_stalled(&mut self, stalled: bool) {
+        self.is_stalled = stalled;
+    }
+
+    pub fn set_yaw(&mut self, value: f32) {
+        self.yaw = value;
+    }
+
+    pub fn set_pitch(&mut self, value: f32) {
+        self.pitch = value;
+    }
+
+    pub fn set_roll(&mut self, value: f32) {
+        self.roll = value;
+    }
 }
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
