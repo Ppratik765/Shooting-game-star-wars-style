@@ -1,0 +1,15 @@
+{
+  "name": "core-engine",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "core_engine_bg.wasm",
+    "core_engine.js",
+    "core_engine.d.ts"
+  ],
+  "main": "core_engine.js",
+  "types": "core_engine.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
