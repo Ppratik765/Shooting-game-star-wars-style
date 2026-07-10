@@ -27,4 +27,3 @@ scratch
 
 # Rust / WebAssembly build artifacts
 core-engine/target/
-pkg/
