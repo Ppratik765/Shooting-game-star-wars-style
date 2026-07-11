@@ -213,7 +213,7 @@ export class ParticleSystem {
     const engine = this.engine;
     // Return a thin proxy object matching the old API:
     // { active, position: {copy, set}, velocity: {set}, age, life, color: {setHex} }
-    return {
+    const proxy = {
       _idx: idx,
       _engine: engine,
       set active(val) {
