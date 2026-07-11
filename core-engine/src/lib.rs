@@ -222,35 +222,50 @@ impl ParticleEngine {
 
 // ─── Collision Utilities (stateless, exported to JS) ───────────────────────────
 
-/// Line segment vs sphere intersection test.
-/// Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
 #[wasm_bindgen]
-pub fn line_sphere_intersect(
-    lx0: f32, ly0: f32, lz0: f32,
-    lx1: f32, ly1: f32, lz1: f32,
-    cx: f32, cy: f32, cz: f32,
-    radius: f32,
-) -> bool {
-    systems::collisions::line_sphere_intersect(
-        Vec3::new(lx0, ly0, lz0),
-        Vec3::new(lx1, ly1, lz1),
-        Vec3::new(cx, cy, cz),
-        radius,
-    )
+pub fn check_bulk_laser_hits(
+    enemy_ptr: *const f32,
+    enemy_count: u32,
+    laser_ptr: *const f32,
+    laser_count: u32,
+) {
+    systems::collisions::check_bulk_laser_hits(enemy_ptr, enemy_count, laser_ptr, laser_count);
 }
 
-/// Point vs sphere (squared distance) test.
-/// Used by EnemyManager._updateEnemyProjectiles() for projectile-vs-player.
 #[wasm_bindgen]
-pub fn point_in_sphere_sq(
-    px: f32, py: f32, pz: f32,
-    cx: f32, cy: f32, cz: f32,
+pub fn check_bulk_enemy_projectiles(
+    proj_ptr: *const f32,
+    proj_count: u32,
+    px: f32,
+    py: f32,
+    pz: f32,
     radius_sq: f32,
-) -> bool {
-    systems::collisions::point_in_sphere_sq(
-        Vec3::new(px, py, pz),
-        Vec3::new(cx, cy, cz),
-        radius_sq,
-    )
+) {
+    systems::collisions::check_bulk_enemy_projectiles(proj_ptr, proj_count, px, py, pz, radius_sq);
+}
+
+#[wasm_bindgen]
+pub fn get_hit_results_ptr() -> *const i32 {
+    systems::collisions::HIT_RESULTS_BUF.with(|buf| buf.borrow().as_ptr())
+}
+
+#[wasm_bindgen]
+pub fn get_hit_results_len() -> u32 {
+    systems::collisions::HIT_RESULTS_BUF.with(|buf| buf.borrow().len() as u32)
+}
+
+#[wasm_bindgen]
+pub fn engine_memory_alloc(size: usize) -> *mut u8 {
+    let mut buf = Vec::with_capacity(size);
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    ptr
+}
+
+#[wasm_bindgen]
+pub fn engine_memory_free(ptr: *mut u8, size: usize) {
+    unsafe {
+        drop(Vec::from_raw_parts(ptr, 0, size));
+    }
 }
 

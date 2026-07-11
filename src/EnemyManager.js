@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { point_in_sphere_sq } from './wasm.js';
+
 export class EnemyManager {
   constructor(scene, particleSystem, playerShip, isMobile = false) {
     this.scene = scene;
@@ -136,6 +136,9 @@ export class EnemyManager {
     this._tempV8 = new THREE.Vector3();
     this._tempV9 = new THREE.Vector3();
     this._tempV10 = new THREE.Vector3();
+
+    // Data-oriented bulk processing buffer
+    this.projBuffer = new Float32Array(this.maxEnemyProjectiles * 3);
   }
 
   // Build translucent red wireframe TIE fighter meshes — massively cheaper than solid
@@ -669,9 +672,14 @@ export class EnemyManager {
 
   _updateEnemyProjectiles(deltaTime) {
     const playerPos = this.playerShip.camera.position;
+    let projCount = 0;
+    const projMap = [];
+
+    // 1. Pack active enemy projectiles
     for (let i = 0; i < this.maxEnemyProjectiles; i++) {
       const p = this.enemyProjectiles[i];
       if (!p.active) continue;
+      
       p.age += deltaTime;
       if (p.age > p.maxAge) { p.active = false; p.mesh.visible = false; continue; }
       p.mesh.position.addScaledVector(p.velocity, deltaTime);
@@ -689,21 +697,53 @@ export class EnemyManager {
         }
       }
 
-      const hit = point_in_sphere_sq(
-        p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
-        playerPos.x, playerPos.y, playerPos.z,
-        144.0
-      );
-
-      if (hit) {
-        p.active = false;
-        p.mesh.visible = false;
-        if (!this.playerShip.shieldActive) {
-          this.playerShip.hp -= 8;
-        }
-        if (this.onPlayerHit) this.onPlayerHit();
-      }
+      const base = projCount * 3;
+      this.projBuffer[base] = p.mesh.position.x;
+      this.projBuffer[base + 1] = p.mesh.position.y;
+      this.projBuffer[base + 2] = p.mesh.position.z;
+      projMap.push(p);
+      projCount++;
     }
+
+    if (projCount === 0) return;
+
+    // 2. Write arrays to Wasm memory
+    import('./wasm.js').then(wasm => {
+      // Allocate in Wasm
+      const projMemPtr = wasm.engine_memory_alloc(projCount * 3 * 4);
+      
+      // Copy JS buffer to Wasm memory
+      const wasmMemory = new Float32Array(wasm.memory.buffer);
+      wasmMemory.set(this.projBuffer.subarray(0, projCount * 3), projMemPtr / 4);
+
+      // Execute bulk check (player radius_sq = 144.0)
+      wasm.check_bulk_enemy_projectiles(projMemPtr, projCount, playerPos.x, playerPos.y, playerPos.z, 144.0);
+
+      // Read back hits
+      const hitLen = wasm.get_hit_results_len();
+      if (hitLen > 0) {
+        const hitPtr = wasm.get_hit_results_ptr() / 4; // Int32 array pointer
+        const hitData = new Int32Array(wasm.memory.buffer, hitPtr * 4, hitLen);
+        
+        // hitData is [proj_idx, proj_idx, ...]
+        for (let i = 0; i < hitLen; i++) {
+          const pIdx = hitData[i];
+          const hitProj = projMap[pIdx];
+          
+          if (hitProj && hitProj.active) {
+            hitProj.active = false;
+            hitProj.mesh.visible = false;
+            if (!this.playerShip.shieldActive) {
+              this.playerShip.hp -= 8;
+            }
+            if (this.onPlayerHit) this.onPlayerHit();
+          }
+        }
+      }
+
+      // Free Wasm memory
+      wasm.engine_memory_free(projMemPtr, projCount * 3 * 4);
+    }).catch(e => console.error(e));
   }
 
   _spawnFormation() {

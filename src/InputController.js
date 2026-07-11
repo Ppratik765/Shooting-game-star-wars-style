@@ -83,28 +83,6 @@ export class InputController {
   }
 
   _initMobileUI() {
-    // Landscape orientation prompt
-    const landscapeMsg = document.createElement('div');
-    landscapeMsg.id = 'landscape-prompt';
-    landscapeMsg.innerHTML = `
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#00ffaa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
-        <rect x="22" y="8" width="20" height="36" rx="3" transform="rotate(-30 32 26)" stroke-dasharray="2 2" opacity="0.5" />
-        <rect x="14" y="22" width="36" height="20" rx="3" />
-        <line x1="18" y1="26" x2="18" y2="38" />
-        <circle cx="46" cy="32" r="1.5" fill="#00ffaa" />
-        <path d="M 44 14 A 18 18 0 0 1 50 32 L 53 28 M 50 32 L 45 31" />
-        <path d="M 20 50 A 18 18 0 0 1 14 32 L 11 36 M 14 32 L 19 33" />
-      </svg>
-      <div>ROTATE DEVICE TO LANDSCAPE</div>
-      <div style="font-size:18px; margin-top:10px; color:#ffb700; text-transform:uppercase;">
-        FOR BEST DOGFIGHT EXPERIENCE
-      </div>
-      <div style="font-size:15px; margin-top:12px; color:#88ffcc; text-transform:uppercase; letter-spacing:1px; opacity:0.8;">
-        (OR USE A DESKTOP FOR THE BEST EXPERIENCE)
-      </div>
-    `;
-    document.body.appendChild(landscapeMsg);
-
     // Virtual HUD overlay
     const mobileHUD = document.createElement('div');
     mobileHUD.id = 'mobile-hud';

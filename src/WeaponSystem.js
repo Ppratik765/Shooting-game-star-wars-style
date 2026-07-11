@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { line_sphere_intersect } from './wasm.js';
+
 export class WeaponSystem {
   constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null) {
     this.scene = scene;
@@ -133,7 +133,10 @@ export class WeaponSystem {
     this._tempV3 = new THREE.Vector3();
     this._tempV4 = new THREE.Vector3();
     this._tempV5 = new THREE.Vector3();
-    this._tempLine = new THREE.Line3();
+
+    // Data-oriented bulk processing buffers
+    this.enemyBuffer = new Float32Array(this.enemyManager.maxEnemies * 4);
+    this.laserBuffer = new Float32Array(this.poolSize * 6);
   }
 
   update(deltaTime, inputController, currentTime, playerVelocity) {
@@ -191,12 +194,11 @@ export class WeaponSystem {
             this.particleSystem.spawnLaserImpact(impactPos);
           }
           this._deactivate(p);
-          continue;
         }
       }
-
-      this._checkCollisions(p);
     }
+
+    this._bulkCheckCollisions();
   }
 
   fire(playerVelocity) {
@@ -288,34 +290,88 @@ export class WeaponSystem {
     p.trackingTarget = null;
   }
 
-  _checkCollisions(projectile) {
+  _bulkCheckCollisions() {
     const enemies = this.enemyManager.getEnemies();
+    let enemyCount = 0;
+    const enemyMap = []; // Maps local buffer index back to actual enemy reference
 
-    // Create a line segment representing the bullet's volume this frame without allocating new Vector3s
-    const tail = this._tempV1.copy(projectile.mesh.position).addScaledVector(projectile.direction, -160);
-    const head = this._tempV2.copy(projectile.mesh.position).addScaledVector(projectile.direction, 100);
-    this._tempLine.set(tail, head);
-    const closestPoint = this._tempV3;
-
+    // 1. Pack active enemies
     for (let i = 0; i < enemies.length; i++) {
-      const enemy = enemies[i];
-      if (!enemy.active || enemy.dying) continue;
-
-      const threshold = enemy.radius + 8;
-      
-      const hit = line_sphere_intersect(
-        tail.x, tail.y, tail.z,
-        head.x, head.y, head.z,
-        enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z,
-        threshold
-      );
-
-      if (hit) {
-        this.enemyManager.damageEnemy(enemy, 1);
-        this._deactivate(projectile);
-        return;
-      }
+      const e = enemies[i];
+      if (!e.active || e.dying) continue;
+      const base = enemyCount * 4;
+      this.enemyBuffer[base] = e.mesh.position.x;
+      this.enemyBuffer[base + 1] = e.mesh.position.y;
+      this.enemyBuffer[base + 2] = e.mesh.position.z;
+      this.enemyBuffer[base + 3] = e.radius + 8; // threshold
+      enemyMap.push(e);
+      enemyCount++;
     }
+
+    if (enemyCount === 0) return;
+
+    let laserCount = 0;
+    const laserMap = []; // Maps local buffer index back to actual laser reference
+
+    // 2. Pack active lasers
+    for (let i = 0; i < this.poolSize; i++) {
+      const p = this.pool[i];
+      if (!p.active) continue;
+      
+      const tail = this._tempV1.copy(p.mesh.position).addScaledVector(p.direction, -160);
+      const head = this._tempV2.copy(p.mesh.position).addScaledVector(p.direction, 100);
+      
+      const base = laserCount * 6;
+      this.laserBuffer[base] = tail.x;
+      this.laserBuffer[base + 1] = tail.y;
+      this.laserBuffer[base + 2] = tail.z;
+      this.laserBuffer[base + 3] = head.x;
+      this.laserBuffer[base + 4] = head.y;
+      this.laserBuffer[base + 5] = head.z;
+      laserMap.push(p);
+      laserCount++;
+    }
+
+    if (laserCount === 0) return;
+
+    // 3. Write arrays to Wasm memory
+    import('./wasm.js').then(wasm => {
+      // Allocate in Wasm
+      const enemyMemPtr = wasm.engine_memory_alloc(enemyCount * 4 * 4);
+      const laserMemPtr = wasm.engine_memory_alloc(laserCount * 6 * 4);
+      
+      // Copy JS buffer to Wasm memory
+      const wasmMemory = new Float32Array(wasm.memory.buffer);
+      wasmMemory.set(this.enemyBuffer.subarray(0, enemyCount * 4), enemyMemPtr / 4);
+      wasmMemory.set(this.laserBuffer.subarray(0, laserCount * 6), laserMemPtr / 4);
+
+      // Execute bulk check
+      wasm.check_bulk_laser_hits(enemyMemPtr, enemyCount, laserMemPtr, laserCount);
+
+      // Read back hits
+      const hitLen = wasm.get_hit_results_len();
+      if (hitLen > 0) {
+        const hitPtr = wasm.get_hit_results_ptr() / 4; // Int32 array pointer
+        const hitData = new Int32Array(wasm.memory.buffer, hitPtr * 4, hitLen);
+        
+        // hitData is [enemy_idx, laser_idx, enemy_idx, laser_idx, ...]
+        for (let i = 0; i < hitLen; i += 2) {
+          const eIdx = hitData[i];
+          const lIdx = hitData[i + 1];
+          const hitEnemy = enemyMap[eIdx];
+          const hitLaser = laserMap[lIdx];
+          
+          if (hitEnemy && hitEnemy.active && !hitEnemy.dying && hitLaser && hitLaser.active) {
+            this.enemyManager.damageEnemy(hitEnemy, 1);
+            this._deactivate(hitLaser);
+          }
+        }
+      }
+
+      // Free Wasm memory
+      wasm.engine_memory_free(enemyMemPtr, enemyCount * 4 * 4);
+      wasm.engine_memory_free(laserMemPtr, laserCount * 6 * 4);
+    }).catch(e => console.error(e));
   }
 
   _attemptLock() {
