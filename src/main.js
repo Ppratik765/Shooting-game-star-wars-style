@@ -39,17 +39,8 @@ if (useComposer) {
     0.2   // threshold — low enough for lasers/suns/explosions to bloom, but avoids dark terrain
   );
   
-  // Limit bloom passes to 3 instead of 5 to save GPU fill rate
+  // Limit bloom passes to 3 instead of 5 to save GPU fill rate (the shader will safely sample black textures for the remaining 2)
   bloomPass.nMips = 3;
-  // Rebuild composite material for 3 mips to avoid unnecessary texture samples
-  bloomPass.compositeMaterial = bloomPass._getCompositeMaterial(3);
-  bloomPass.compositeMaterial.uniforms[ 'blurTexture1' ].value = bloomPass.renderTargetsVertical[ 0 ].texture;
-  bloomPass.compositeMaterial.uniforms[ 'blurTexture2' ].value = bloomPass.renderTargetsVertical[ 1 ].texture;
-  bloomPass.compositeMaterial.uniforms[ 'blurTexture3' ].value = bloomPass.renderTargetsVertical[ 2 ].texture;
-  bloomPass.compositeMaterial.uniforms[ 'bloomStrength' ].value = 1.0;
-  bloomPass.compositeMaterial.uniforms[ 'bloomRadius' ].value = 0.3;
-  bloomPass.compositeMaterial.uniforms[ 'bloomFactors' ].value = [ 1.0, 0.8, 0.6 ];
-  bloomPass.compositeMaterial.uniforms[ 'bloomTintColors' ].value = [ new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1) ];
 
   composer = new EffectComposer(renderer);
   composer.addPass(renderScene);
