@@ -1,5 +1,8 @@
 import * as THREE from 'three';
+import init, { line_sphere_intersect } from '../pkg/core_engine.js';
 
+// Ensure WASM is initialized
+await init();
 export class WeaponSystem {
   constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null, isLightMode = false) {
     this.scene = scene;
@@ -303,12 +306,16 @@ export class WeaponSystem {
       const enemy = enemies[i];
       if (!enemy.active || enemy.dying) continue;
 
-      this._tempLine.closestPointToPoint(enemy.mesh.position, true, closestPoint);
       const threshold = enemy.radius + 8;
-      const distSq = closestPoint.distanceToSquared(enemy.mesh.position);
+      
+      const hit = line_sphere_intersect(
+        tail.x, tail.y, tail.z,
+        head.x, head.y, head.z,
+        enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z,
+        threshold
+      );
 
-      // Compare squared distance to avoid Math.sqrt()
-      if (distSq < threshold * threshold) {
+      if (hit) {
         this.enemyManager.damageEnemy(enemy, 1);
         this._deactivate(projectile);
         return;

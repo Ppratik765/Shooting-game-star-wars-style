@@ -1,5 +1,8 @@
 import * as THREE from 'three';
+import init, { point_in_sphere_sq } from '../pkg/core_engine.js';
 
+// Ensure WASM is initialized
+await init();
 export class EnemyManager {
   constructor(scene, particleSystem, playerShip, isMobile = false) {
     this.scene = scene;
@@ -494,8 +497,13 @@ export class EnemyManager {
         }
       }
 
-      const distSq = p.mesh.position.distanceToSquared(playerPos);
-      if (distSq < 144) {
+      const hit = point_in_sphere_sq(
+        p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
+        playerPos.x, playerPos.y, playerPos.z,
+        144.0
+      );
+
+      if (hit) {
         p.active = false;
         p.mesh.visible = false;
         if (!this.playerShip.shieldActive) {
