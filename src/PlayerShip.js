@@ -15,15 +15,20 @@ export class PlayerShip {
     this.engine = new GameEngine(rx, rz);
 
     // Create Float32Array views into Wasm memory (Zero-overhead bridge)
-    this.transformBuf = new Float32Array(memory.buffer, this.engine.get_transform_ptr(), 7);
-    this.stateBuf = new Float32Array(memory.buffer, this.engine.get_state_ptr(), 18);
-    this.velocityBuf = new Float32Array(memory.buffer, this.engine.get_velocity_ptr(), 3);
+    this._refreshBufferViews();
 
     // Input state object that we populate every frame
     this.inputState = new InputState();
 
     // Temporary object to maintain compatibility with GameManager.js which reads this.velocity
     this.velocity = new THREE.Vector3(0, 0, -140);
+  }
+
+  /// Re-create buffer views. Must be called after any Wasm memory growth.
+  _refreshBufferViews() {
+    this.transformBuf = new Float32Array(memory.buffer, this.engine.get_transform_ptr(), 7);
+    this.stateBuf = new Float32Array(memory.buffer, this.engine.get_state_ptr(), 18);
+    this.velocityBuf = new Float32Array(memory.buffer, this.engine.get_velocity_ptr(), 3);
   }
 
   // --- Getters to read from Wasm shared memory (zero-overhead) ---
@@ -98,6 +103,11 @@ export class PlayerShip {
 
     // Tick Wasm engine
     const shakeTriggered = this.engine.tick(deltaTime, this.inputState, terrainHeight, isIntro);
+
+    // Refresh views in case Wasm memory was resized (rare but safe)
+    if (this.transformBuf.buffer !== memory.buffer) {
+      this._refreshBufferViews();
+    }
 
     // Sync back to Three.js camera/velocity
     this.camera.position.set(this.transformBuf[0], this.transformBuf[1], this.transformBuf[2]);
