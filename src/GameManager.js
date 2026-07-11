@@ -409,10 +409,6 @@ export class GameManager {
         colors[i * 3 + 1] = brightness;
         colors[i * 3 + 2] = brightness;
       }
-      
-  colors[i * 3 + 1] = 0;
-        colors[i * 3 + 2] = 0;
-      }
     }
 
     const starGeom = new THREE.BufferGeometry();
