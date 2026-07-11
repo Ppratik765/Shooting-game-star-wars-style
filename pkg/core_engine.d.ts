@@ -88,7 +88,7 @@ export class ParticleEngine {
      * Create a new particle engine.
      * `max_particles`: 4000 desktop, 1500 mobile.
      */
-    constructor(max_particles: number, is_mobile: boolean, is_light_mode: boolean);
+    constructor(max_particles: number, is_mobile: boolean);
     /**
      * Deactivate all particles.
      */
@@ -111,17 +111,17 @@ export class ParticleEngine {
     update(dt: number): number;
 }
 
-/**
- * Line segment vs sphere intersection test.
- * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
- */
-export function line_sphere_intersect(lx0: number, ly0: number, lz0: number, lx1: number, ly1: number, lz1: number, cx: number, cy: number, cz: number, radius: number): boolean;
+export function check_bulk_enemy_projectiles(proj_ptr: number, proj_count: number, px: number, py: number, pz: number, radius_sq: number): void;
 
-/**
- * Point vs sphere (squared distance) test.
- * Used by EnemyManager._updateEnemyProjectiles() for projectile-vs-player.
- */
-export function point_in_sphere_sq(px: number, py: number, pz: number, cx: number, cy: number, cz: number, radius_sq: number): boolean;
+export function check_bulk_laser_hits(enemy_ptr: number, enemy_count: number, laser_ptr: number, laser_count: number): void;
+
+export function engine_memory_alloc(size: number): number;
+
+export function engine_memory_free(ptr: number, size: number): void;
+
+export function get_hit_results_len(): number;
+
+export function get_hit_results_ptr(): number;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -152,6 +152,10 @@ export interface InitOutput {
     readonly __wbg_set_inputstate_is_stalled_recovery_key: (a: number, b: number) => void;
     readonly __wbg_set_inputstate_mouse_movement_x: (a: number, b: number) => void;
     readonly __wbg_set_inputstate_mouse_movement_y: (a: number, b: number) => void;
+    readonly check_bulk_enemy_projectiles: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly check_bulk_laser_hits: (a: number, b: number, c: number, d: number) => void;
+    readonly engine_memory_alloc: (a: number) => number;
+    readonly engine_memory_free: (a: number, b: number) => void;
     readonly gameengine_die: (a: number) => void;
     readonly gameengine_get_state_ptr: (a: number) => number;
     readonly gameengine_get_transform_ptr: (a: number) => number;
@@ -169,20 +173,20 @@ export interface InitOutput {
     readonly gameengine_set_yaw: (a: number, b: number) => void;
     readonly gameengine_tick: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gameengine_trigger_shake: (a: number, b: number) => void;
+    readonly get_hit_results_len: () => number;
+    readonly get_hit_results_ptr: () => number;
     readonly inputstate_new: () => number;
-    readonly line_sphere_intersect: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
     readonly particleengine_activate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly particleengine_get_active_count: (a: number) => number;
     readonly particleengine_get_color_ptr: (a: number) => number;
     readonly particleengine_get_free: (a: number) => number;
     readonly particleengine_get_matrix_ptr: (a: number) => number;
-    readonly particleengine_new: (a: number, b: number, c: number) => number;
+    readonly particleengine_new: (a: number, b: number) => number;
     readonly particleengine_reset: (a: number) => void;
     readonly particleengine_spawn_airburst: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly particleengine_spawn_ground_explosion: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly particleengine_spawn_laser_impact: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly particleengine_update: (a: number, b: number) => number;
-    readonly point_in_sphere_sq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;
 }

@@ -366,10 +366,9 @@ export class ParticleEngine {
      * `max_particles`: 4000 desktop, 1500 mobile.
      * @param {number} max_particles
      * @param {boolean} is_mobile
-     * @param {boolean} is_light_mode
      */
-    constructor(max_particles, is_mobile, is_light_mode) {
-        const ret = wasm.particleengine_new(max_particles, is_mobile, is_light_mode);
+    constructor(max_particles, is_mobile) {
+        const ret = wasm.particleengine_new(max_particles, is_mobile);
         this.__wbg_ptr = ret;
         ParticleEngineFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -423,40 +422,58 @@ export class ParticleEngine {
 if (Symbol.dispose) ParticleEngine.prototype[Symbol.dispose] = ParticleEngine.prototype.free;
 
 /**
- * Line segment vs sphere intersection test.
- * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
- * @param {number} lx0
- * @param {number} ly0
- * @param {number} lz0
- * @param {number} lx1
- * @param {number} ly1
- * @param {number} lz1
- * @param {number} cx
- * @param {number} cy
- * @param {number} cz
- * @param {number} radius
- * @returns {boolean}
- */
-export function line_sphere_intersect(lx0, ly0, lz0, lx1, ly1, lz1, cx, cy, cz, radius) {
-    const ret = wasm.line_sphere_intersect(lx0, ly0, lz0, lx1, ly1, lz1, cx, cy, cz, radius);
-    return ret !== 0;
-}
-
-/**
- * Point vs sphere (squared distance) test.
- * Used by EnemyManager._updateEnemyProjectiles() for projectile-vs-player.
+ * @param {number} proj_ptr
+ * @param {number} proj_count
  * @param {number} px
  * @param {number} py
  * @param {number} pz
- * @param {number} cx
- * @param {number} cy
- * @param {number} cz
  * @param {number} radius_sq
- * @returns {boolean}
  */
-export function point_in_sphere_sq(px, py, pz, cx, cy, cz, radius_sq) {
-    const ret = wasm.point_in_sphere_sq(px, py, pz, cx, cy, cz, radius_sq);
-    return ret !== 0;
+export function check_bulk_enemy_projectiles(proj_ptr, proj_count, px, py, pz, radius_sq) {
+    wasm.check_bulk_enemy_projectiles(proj_ptr, proj_count, px, py, pz, radius_sq);
+}
+
+/**
+ * @param {number} enemy_ptr
+ * @param {number} enemy_count
+ * @param {number} laser_ptr
+ * @param {number} laser_count
+ */
+export function check_bulk_laser_hits(enemy_ptr, enemy_count, laser_ptr, laser_count) {
+    wasm.check_bulk_laser_hits(enemy_ptr, enemy_count, laser_ptr, laser_count);
+}
+
+/**
+ * @param {number} size
+ * @returns {number}
+ */
+export function engine_memory_alloc(size) {
+    const ret = wasm.engine_memory_alloc(size);
+    return ret >>> 0;
+}
+
+/**
+ * @param {number} ptr
+ * @param {number} size
+ */
+export function engine_memory_free(ptr, size) {
+    wasm.engine_memory_free(ptr, size);
+}
+
+/**
+ * @returns {number}
+ */
+export function get_hit_results_len() {
+    const ret = wasm.get_hit_results_len();
+    return ret >>> 0;
+}
+
+/**
+ * @returns {number}
+ */
+export function get_hit_results_ptr() {
+    const ret = wasm.get_hit_results_ptr();
+    return ret >>> 0;
 }
 function __wbg_get_imports() {
     const import0 = {
