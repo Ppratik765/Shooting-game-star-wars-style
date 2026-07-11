@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import init, { point_in_sphere_sq } from '../pkg/core_engine.js';
-
-// Ensure WASM is initialized
-await init();
+import { point_in_sphere_sq } from './wasm.js';
 export class EnemyManager {
   constructor(scene, particleSystem, playerShip, isMobile = false) {
     this.scene = scene;

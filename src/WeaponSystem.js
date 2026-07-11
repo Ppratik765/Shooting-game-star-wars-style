@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import init, { line_sphere_intersect } from '../pkg/core_engine.js';
-
-// Ensure WASM is initialized
-await init();
+import { line_sphere_intersect } from './wasm.js';
 export class WeaponSystem {
   constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null, isLightMode = false) {
     this.scene = scene;

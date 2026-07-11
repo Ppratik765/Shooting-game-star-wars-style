@@ -1,9 +1,6 @@
 import * as THREE from 'three';
-import init, { ParticleEngine } from '../pkg/core_engine.js';
+import { ParticleEngine, wasm } from './wasm.js';
 
-// Top-level await — Wasm is already initialized by PlayerShip.js import,
-// but we call init() again safely (it returns immediately if already loaded).
-const wasm = await init();
 const memory = wasm.memory;
 
 export class ParticleSystem {

@@ -1,8 +1,6 @@
 import * as THREE from 'three';
-import init, { GameEngine, InputState } from '../pkg/core_engine.js';
+import { GameEngine, InputState, wasm } from './wasm.js';
 
-// Top-level await for WASM initialization (supported by Vite via vite-plugin-top-level-await)
-const wasm = await init();
 const memory = wasm.memory;
 
 export class PlayerShip {
