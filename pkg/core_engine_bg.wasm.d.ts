@@ -43,5 +43,7 @@ export const gameengine_set_yaw: (a: number, b: number) => void;
 export const gameengine_tick: (a: number, b: number, c: number, d: number, e: number) => number;
 export const gameengine_trigger_shake: (a: number, b: number) => void;
 export const inputstate_new: () => number;
+export const line_sphere_intersect: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+export const point_in_sphere_sq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_start: () => void;

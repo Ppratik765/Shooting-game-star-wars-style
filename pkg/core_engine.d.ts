@@ -2,8 +2,8 @@
 /* eslint-disable */
 
 /**
- * Core flight physics engine for the wireframe shooter.
- * Holds all numerical state — never touches DOM or JS objects.
+ * Thin wasm_bindgen wrapper around the inner GameEngine.
+ * All #[wasm_bindgen] annotations live here — the inner engine is pure Rust.
  */
 export class GameEngine {
     free(): void;
@@ -57,6 +57,18 @@ export class InputState {
     mouse_movement_y: number;
 }
 
+/**
+ * Line segment vs sphere intersection test.
+ * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
+ */
+export function line_sphere_intersect(lx0: number, ly0: number, lz0: number, lx1: number, ly1: number, lz1: number, cx: number, cy: number, cz: number, radius: number): boolean;
+
+/**
+ * Point vs sphere (squared distance) test.
+ * Used by EnemyManager._updateEnemyProjectiles() for projectile-vs-player.
+ */
+export function point_in_sphere_sq(px: number, py: number, pz: number, cx: number, cy: number, cz: number, radius_sq: number): boolean;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -103,6 +115,8 @@ export interface InitOutput {
     readonly gameengine_tick: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gameengine_trigger_shake: (a: number, b: number) => void;
     readonly inputstate_new: () => number;
+    readonly line_sphere_intersect: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+    readonly point_in_sphere_sq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;
 }

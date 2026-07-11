@@ -1,8 +1,8 @@
 /* @ts-self-types="./core_engine.d.ts" */
 
 /**
- * Core flight physics engine for the wireframe shooter.
- * Holds all numerical state — never touches DOM or JS objects.
+ * Thin wasm_bindgen wrapper around the inner GameEngine.
+ * All #[wasm_bindgen] annotations live here — the inner engine is pure Rust.
  */
 export class GameEngine {
     __destroy_into_raw() {
@@ -296,6 +296,43 @@ export class InputState {
     }
 }
 if (Symbol.dispose) InputState.prototype[Symbol.dispose] = InputState.prototype.free;
+
+/**
+ * Line segment vs sphere intersection test.
+ * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
+ * @param {number} lx0
+ * @param {number} ly0
+ * @param {number} lz0
+ * @param {number} lx1
+ * @param {number} ly1
+ * @param {number} lz1
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} cz
+ * @param {number} radius
+ * @returns {boolean}
+ */
+export function line_sphere_intersect(lx0, ly0, lz0, lx1, ly1, lz1, cx, cy, cz, radius) {
+    const ret = wasm.line_sphere_intersect(lx0, ly0, lz0, lx1, ly1, lz1, cx, cy, cz, radius);
+    return ret !== 0;
+}
+
+/**
+ * Point vs sphere (squared distance) test.
+ * Used by EnemyManager._updateEnemyProjectiles() for projectile-vs-player.
+ * @param {number} px
+ * @param {number} py
+ * @param {number} pz
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} cz
+ * @param {number} radius_sq
+ * @returns {boolean}
+ */
+export function point_in_sphere_sq(px, py, pz, cx, cy, cz, radius_sq) {
+    const ret = wasm.point_in_sphere_sq(px, py, pz, cx, cy, cz, radius_sq);
+    return ret !== 0;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
