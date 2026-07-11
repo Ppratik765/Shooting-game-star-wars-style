@@ -124,8 +124,8 @@ function computeElevation(worldX, worldZ, ns, hs) {
 export class Terrain {
   constructor(scene, isMobile = false) {
     this.scene = scene;
-    this.gridSize = isMobile ? 250 : 400;
-    this.gridSpacing = isMobile ? 20 : 14;
+    this.gridSize = isMobile ? 250 : 500;
+    this.gridSpacing = isMobile ? 20 : 11;
     this.ns = 0.0016;   // slightly lower freq = wider mountains
     this.hs = 220.0;    // taller
     this.maxRadius = (this.gridSize * this.gridSpacing) / 2;
