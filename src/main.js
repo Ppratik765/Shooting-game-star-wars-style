@@ -13,8 +13,8 @@ const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate
-renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
+// Desktop/Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate on integrated GPUs
+renderer.setPixelRatio(1.0);
 renderer.toneMapping = THREE.ReinhardToneMapping;
 
 
@@ -31,8 +31,9 @@ let useComposer = !isMobile;
 
 if (useComposer) {
   const renderScene = new RenderPass(scene, camera);
+  // Render bloom at half-resolution to save massive GPU fill rate (visually identical)
   const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
     1.0,  // strength — full vibrant glow
     0.3,  // radius
     0.2   // threshold — low enough for lasers/suns/explosions to bloom, but avoids dark terrain
