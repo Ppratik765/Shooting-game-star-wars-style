@@ -96,12 +96,14 @@ export class GameManager {
 
     this.terrain = new Terrain(this.scene, isMobile);
     this.particleSystem = new ParticleSystem(this.scene, isMobile);
-    this.terrain = new Terrain(this.scene, isMobile);
     this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
     this.enemyManager.terrain = this.terrain;
 
     this.powerUpManager = new PowerUpManager(this.scene, this.playerShip);
     this.enemyManager.powerUpManager = this.powerUpManager;
+    
+    this.audioManager = new AudioManager();
+    this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
     this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
 
