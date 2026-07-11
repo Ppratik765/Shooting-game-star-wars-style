@@ -335,7 +335,8 @@ export class WeaponSystem {
     if (laserCount === 0) return;
 
     // 3. Write arrays to Wasm memory
-    import('./wasm.js').then(wasm => {
+    import('./wasm.js').then(m => {
+      const wasm = m.wasm;
       // Allocate in Wasm
       const enemyMemPtr = wasm.engine_memory_alloc(enemyCount * 4 * 4);
       const laserMemPtr = wasm.engine_memory_alloc(laserCount * 6 * 4);

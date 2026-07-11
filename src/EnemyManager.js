@@ -708,7 +708,8 @@ export class EnemyManager {
     if (projCount === 0) return;
 
     // 2. Write arrays to Wasm memory
-    import('./wasm.js').then(wasm => {
+    import('./wasm.js').then(m => {
+      const wasm = m.wasm;
       // Allocate in Wasm
       const projMemPtr = wasm.engine_memory_alloc(projCount * 3 * 4);
       
