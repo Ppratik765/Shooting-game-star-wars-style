@@ -298,6 +298,131 @@ export class InputState {
 if (Symbol.dispose) InputState.prototype[Symbol.dispose] = InputState.prototype.free;
 
 /**
+ * Particle physics engine exposed to JS.
+ * Manages the lifecycle, physics, and output buffers for all particles.
+ */
+export class ParticleEngine {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ParticleEngineFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_particleengine_free(ptr, 0);
+    }
+    /**
+     * Activate a specific particle by index with full parameters.
+     * @param {number} index
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {number} vx
+     * @param {number} vy
+     * @param {number} vz
+     * @param {number} life
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     */
+    activate(index, x, y, z, vx, vy, vz, life, r, g, b) {
+        wasm.particleengine_activate(this.__wbg_ptr, index, x, y, z, vx, vy, vz, life, r, g, b);
+    }
+    /**
+     * Returns the number of active particles after the last update().
+     * @returns {number}
+     */
+    get_active_count() {
+        const ret = wasm.particleengine_get_active_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Returns a pointer to the RGB color buffer (active_count × 3 f32s).
+     * @returns {number}
+     */
+    get_color_ptr() {
+        const ret = wasm.particleengine_get_color_ptr(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Find first free particle slot. Returns index or -1 if full.
+     * @returns {number}
+     */
+    get_free() {
+        const ret = wasm.particleengine_get_free(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Returns a pointer to the 4x4 matrix buffer (active_count × 16 f32s).
+     * @returns {number}
+     */
+    get_matrix_ptr() {
+        const ret = wasm.particleengine_get_matrix_ptr(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Create a new particle engine.
+     * `max_particles`: 4000 desktop, 1500 mobile.
+     * @param {number} max_particles
+     * @param {boolean} is_mobile
+     * @param {boolean} is_light_mode
+     */
+    constructor(max_particles, is_mobile, is_light_mode) {
+        const ret = wasm.particleengine_new(max_particles, is_mobile, is_light_mode);
+        this.__wbg_ptr = ret;
+        ParticleEngineFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Deactivate all particles.
+     */
+    reset() {
+        wasm.particleengine_reset(this.__wbg_ptr);
+    }
+    /**
+     * Spawn an airburst explosion at (x,y,z).
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {number} burst_count
+     */
+    spawn_airburst(x, y, z, burst_count) {
+        wasm.particleengine_spawn_airburst(this.__wbg_ptr, x, y, z, burst_count);
+    }
+    /**
+     * Spawn a ground explosion at (x,y,z).
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {number} ground_count
+     */
+    spawn_ground_explosion(x, y, z, ground_count) {
+        wasm.particleengine_spawn_ground_explosion(this.__wbg_ptr, x, y, z, ground_count);
+    }
+    /**
+     * Spawn a laser impact splash at (x,y,z).
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {number} impact_count
+     */
+    spawn_laser_impact(x, y, z, impact_count) {
+        wasm.particleengine_spawn_laser_impact(this.__wbg_ptr, x, y, z, impact_count);
+    }
+    /**
+     * Advance all particles by `dt`. Returns the number of active particles.
+     * @param {number} dt
+     * @returns {number}
+     */
+    update(dt) {
+        const ret = wasm.particleengine_update(this.__wbg_ptr, dt);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) ParticleEngine.prototype[Symbol.dispose] = ParticleEngine.prototype.free;
+
+/**
  * Line segment vs sphere intersection test.
  * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
  * @param {number} lx0
@@ -361,6 +486,9 @@ const GameEngineFinalization = (typeof FinalizationRegistry === 'undefined')
 const InputStateFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_inputstate_free(ptr, 1));
+const ParticleEngineFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_particleengine_free(ptr, 1));
 
 function _assertClass(instance, klass) {
     if (!(instance instanceof klass)) {

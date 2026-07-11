@@ -58,6 +58,60 @@ export class InputState {
 }
 
 /**
+ * Particle physics engine exposed to JS.
+ * Manages the lifecycle, physics, and output buffers for all particles.
+ */
+export class ParticleEngine {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Activate a specific particle by index with full parameters.
+     */
+    activate(index: number, x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, r: number, g: number, b: number): void;
+    /**
+     * Returns the number of active particles after the last update().
+     */
+    get_active_count(): number;
+    /**
+     * Returns a pointer to the RGB color buffer (active_count × 3 f32s).
+     */
+    get_color_ptr(): number;
+    /**
+     * Find first free particle slot. Returns index or -1 if full.
+     */
+    get_free(): number;
+    /**
+     * Returns a pointer to the 4x4 matrix buffer (active_count × 16 f32s).
+     */
+    get_matrix_ptr(): number;
+    /**
+     * Create a new particle engine.
+     * `max_particles`: 4000 desktop, 1500 mobile.
+     */
+    constructor(max_particles: number, is_mobile: boolean, is_light_mode: boolean);
+    /**
+     * Deactivate all particles.
+     */
+    reset(): void;
+    /**
+     * Spawn an airburst explosion at (x,y,z).
+     */
+    spawn_airburst(x: number, y: number, z: number, burst_count: number): void;
+    /**
+     * Spawn a ground explosion at (x,y,z).
+     */
+    spawn_ground_explosion(x: number, y: number, z: number, ground_count: number): void;
+    /**
+     * Spawn a laser impact splash at (x,y,z).
+     */
+    spawn_laser_impact(x: number, y: number, z: number, impact_count: number): void;
+    /**
+     * Advance all particles by `dt`. Returns the number of active particles.
+     */
+    update(dt: number): number;
+}
+
+/**
  * Line segment vs sphere intersection test.
  * Used by WeaponSystem._checkCollisions() for laser-vs-enemy.
  */
@@ -86,6 +140,7 @@ export interface InitOutput {
     readonly __wbg_get_inputstate_mouse_movement_x: (a: number) => number;
     readonly __wbg_get_inputstate_mouse_movement_y: (a: number) => number;
     readonly __wbg_inputstate_free: (a: number, b: number) => void;
+    readonly __wbg_particleengine_free: (a: number, b: number) => void;
     readonly __wbg_set_inputstate_gyro_pitch_amt: (a: number, b: number) => void;
     readonly __wbg_set_inputstate_gyro_roll_amt: (a: number, b: number) => void;
     readonly __wbg_set_inputstate_is_backward: (a: number, b: number) => void;
@@ -116,6 +171,17 @@ export interface InitOutput {
     readonly gameengine_trigger_shake: (a: number, b: number) => void;
     readonly inputstate_new: () => number;
     readonly line_sphere_intersect: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+    readonly particleengine_activate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
+    readonly particleengine_get_active_count: (a: number) => number;
+    readonly particleengine_get_color_ptr: (a: number) => number;
+    readonly particleengine_get_free: (a: number) => number;
+    readonly particleengine_get_matrix_ptr: (a: number) => number;
+    readonly particleengine_new: (a: number, b: number, c: number) => number;
+    readonly particleengine_reset: (a: number) => void;
+    readonly particleengine_spawn_airburst: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly particleengine_spawn_ground_explosion: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly particleengine_spawn_laser_impact: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly particleengine_update: (a: number, b: number) => number;
     readonly point_in_sphere_sq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;

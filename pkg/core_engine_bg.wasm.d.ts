@@ -14,6 +14,7 @@ export const __wbg_get_inputstate_is_stalled_recovery_key: (a: number) => number
 export const __wbg_get_inputstate_mouse_movement_x: (a: number) => number;
 export const __wbg_get_inputstate_mouse_movement_y: (a: number) => number;
 export const __wbg_inputstate_free: (a: number, b: number) => void;
+export const __wbg_particleengine_free: (a: number, b: number) => void;
 export const __wbg_set_inputstate_gyro_pitch_amt: (a: number, b: number) => void;
 export const __wbg_set_inputstate_gyro_roll_amt: (a: number, b: number) => void;
 export const __wbg_set_inputstate_is_backward: (a: number, b: number) => void;
@@ -44,6 +45,17 @@ export const gameengine_tick: (a: number, b: number, c: number, d: number, e: nu
 export const gameengine_trigger_shake: (a: number, b: number) => void;
 export const inputstate_new: () => number;
 export const line_sphere_intersect: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+export const particleengine_activate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
+export const particleengine_get_active_count: (a: number) => number;
+export const particleengine_get_color_ptr: (a: number) => number;
+export const particleengine_get_free: (a: number) => number;
+export const particleengine_get_matrix_ptr: (a: number) => number;
+export const particleengine_new: (a: number, b: number, c: number) => number;
+export const particleengine_reset: (a: number) => void;
+export const particleengine_spawn_airburst: (a: number, b: number, c: number, d: number, e: number) => void;
+export const particleengine_spawn_ground_explosion: (a: number, b: number, c: number, d: number, e: number) => void;
+export const particleengine_spawn_laser_impact: (a: number, b: number, c: number, d: number, e: number) => void;
+export const particleengine_update: (a: number, b: number) => number;
 export const point_in_sphere_sq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_start: () => void;

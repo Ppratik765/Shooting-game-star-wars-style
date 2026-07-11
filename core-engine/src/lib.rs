@@ -140,6 +140,86 @@ impl GameEngine {
     }
 }
 
+// ─── ParticleEngine (wasm_bindgen wrapper) ─────────────────────────────────────
+
+use systems::particles::ParticleEngine as InnerParticleEngine;
+
+/// Particle physics engine exposed to JS.
+/// Manages the lifecycle, physics, and output buffers for all particles.
+#[wasm_bindgen]
+pub struct ParticleEngine {
+    inner: InnerParticleEngine,
+}
+
+#[wasm_bindgen]
+impl ParticleEngine {
+    /// Create a new particle engine.
+    /// `max_particles`: 4000 desktop, 1500 mobile.
+    #[wasm_bindgen(constructor)]
+    pub fn new(max_particles: u32, is_mobile: bool, is_light_mode: bool) -> ParticleEngine {
+        ParticleEngine {
+            inner: InnerParticleEngine::new(max_particles, is_mobile, is_light_mode),
+        }
+    }
+
+    /// Advance all particles by `dt`. Returns the number of active particles.
+    pub fn update(&mut self, dt: f32) -> u32 {
+        self.inner.update(dt)
+    }
+
+    /// Spawn an airburst explosion at (x,y,z).
+    pub fn spawn_airburst(&mut self, x: f32, y: f32, z: f32, burst_count: u32) {
+        self.inner.spawn_airburst(x, y, z, burst_count);
+    }
+
+    /// Spawn a ground explosion at (x,y,z).
+    pub fn spawn_ground_explosion(&mut self, x: f32, y: f32, z: f32, ground_count: u32) {
+        self.inner.spawn_ground_explosion(x, y, z, ground_count);
+    }
+
+    /// Spawn a laser impact splash at (x,y,z).
+    pub fn spawn_laser_impact(&mut self, x: f32, y: f32, z: f32, impact_count: u32) {
+        self.inner.spawn_laser_impact(x, y, z, impact_count);
+    }
+
+    /// Find first free particle slot. Returns index or -1 if full.
+    pub fn get_free(&mut self) -> i32 {
+        self.inner.get_free()
+    }
+
+    /// Activate a specific particle by index with full parameters.
+    pub fn activate(
+        &mut self,
+        index: u32,
+        x: f32, y: f32, z: f32,
+        vx: f32, vy: f32, vz: f32,
+        life: f32,
+        r: f32, g: f32, b: f32,
+    ) {
+        self.inner.activate(index, x, y, z, vx, vy, vz, life, r, g, b);
+    }
+
+    /// Returns a pointer to the 4x4 matrix buffer (active_count × 16 f32s).
+    pub fn get_matrix_ptr(&self) -> *const f32 {
+        self.inner.get_matrix_ptr()
+    }
+
+    /// Returns a pointer to the RGB color buffer (active_count × 3 f32s).
+    pub fn get_color_ptr(&self) -> *const f32 {
+        self.inner.get_color_ptr()
+    }
+
+    /// Returns the number of active particles after the last update().
+    pub fn get_active_count(&self) -> u32 {
+        self.inner.get_active_count()
+    }
+
+    /// Deactivate all particles.
+    pub fn reset(&mut self) {
+        self.inner.reset();
+    }
+}
+
 // ─── Collision Utilities (stateless, exported to JS) ───────────────────────────
 
 /// Line segment vs sphere intersection test.
@@ -173,3 +253,4 @@ pub fn point_in_sphere_sq(
         radius_sq,
     )
 }
+
