@@ -37,7 +37,7 @@ impl Rng {
 
 pub struct ParticleEngine {
     max_particles: usize,
-    is_light_mode: bool,
+
 
     // SoA particle data
     active: Vec<bool>,
@@ -62,11 +62,10 @@ pub struct ParticleEngine {
 }
 
 impl ParticleEngine {
-    pub fn new(max_particles: u32, _is_mobile: bool, is_light_mode: bool) -> Self {
+    pub fn new(max_particles: u32, _is_mobile: bool) -> Self {
         let n = max_particles as usize;
         ParticleEngine {
             max_particles: n,
-            is_light_mode,
 
             active: vec![false; n],
             pos_x: vec![0.0; n],
@@ -166,15 +165,7 @@ impl ParticleEngine {
             self.life[idx] = 0.3 + self.rng.next_f32() * 0.7;
 
             let r = self.rng.next_f32();
-            if self.is_light_mode {
-                if r > 0.8 {
-                    self.set_color_hex(idx, 0xffffff);
-                } else if r > 0.4 {
-                    self.set_color_hex(idx, 0x00ccff);
-                } else {
-                    self.set_color_hex(idx, 0x0055ff);
-                }
-            } else if r > 0.8 {
+            if r > 0.8 {
                 self.set_color_hex(idx, 0xffffff);
             } else if r > 0.4 {
                 self.set_color_hex(idx, 0xffaa00);
@@ -203,13 +194,7 @@ impl ParticleEngine {
             self.age[idx] = 0.0;
             self.life[idx] = 0.8 + self.rng.next_f32() * 1.2;
 
-            if self.is_light_mode {
-                if self.rng.next_f32() > 0.5 {
-                    self.set_color_hex(idx, 0x0055ff);
-                } else {
-                    self.set_color_hex(idx, 0x00ccff);
-                }
-            } else if self.rng.next_f32() > 0.5 {
+            if self.rng.next_f32() > 0.5 {
                 self.set_color_hex(idx, 0xff0000);
             } else {
                 self.set_color_hex(idx, 0xff6600);
@@ -237,20 +222,12 @@ impl ParticleEngine {
             self.life[idx] = 0.2 + self.rng.next_f32() * 0.4;
 
             let r = self.rng.next_f32();
-            if self.is_light_mode {
-                if r > 0.6 {
-                    self.set_color_hex(idx, 0x0055ff);
-                } else if r > 0.3 {
-                    self.set_color_hex(idx, 0x0088ff);
-                } else {
-                    self.set_color_hex(idx, 0x00ccff);
-                }
-            } else if r > 0.6 {
+            if r > 0.6 {
                 self.set_color_hex(idx, 0xff0000);
             } else if r > 0.3 {
-                self.set_color_hex(idx, 0xff4400);
-            } else {
                 self.set_color_hex(idx, 0xff8800);
+            } else {
+                self.set_color_hex(idx, 0xffcc00);
             }
         }
     }

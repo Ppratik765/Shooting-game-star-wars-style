@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { line_sphere_intersect } from './wasm.js';
 export class WeaponSystem {
-  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null, isLightMode = false) {
+  constructor(scene, camera, enemyManager, uiManager, isMobile = false, audioManager = null, terrain = null, particleSystem = null) {
     this.scene = scene;
     this.camera = camera;
     this.enemyManager = enemyManager;
@@ -10,7 +10,6 @@ export class WeaponSystem {
     this.audioManager = audioManager;
     this.terrain = terrain;
     this.particleSystem = particleSystem;
-    this.isLightMode = isLightMode;
 
     // Charge system
     this.maxCharge = 70;
@@ -85,7 +84,7 @@ export class WeaponSystem {
 
     // Shared Materials for performance
     const mat = new THREE.MeshBasicMaterial({
-      color: this.isLightMode ? new THREE.Color(0.0, 1.0, 4.5) : new THREE.Color(4.5, 1.8, 0.0), // HDR Blue or Orange
+      color: new THREE.Color(4.5, 1.8, 0.0), // HDR Orange
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -217,43 +216,42 @@ export class WeaponSystem {
     const ndcX = (crosshairPos.x / window.innerWidth) * 2 - 1;
     const ndcY = -(crosshairPos.y / window.innerHeight) * 2 + 1;
     this.raycaster.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
-    const aimDir = this.raycaster.ray.direction.clone().normalize();
-
-    const laserVel = aimDir.clone().multiplyScalar(this.projectileSpeed);
+    const aimDir = this._tempV1.copy(this.raycaster.ray.direction).normalize();
+    const laserVel = this._tempV2.copy(aimDir).multiplyScalar(this.projectileSpeed);
 
     const near = 5.0;
-    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-    const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const camRight = this._tempV3.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const camFwd = this._tempV4.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
     const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
     const aspect = window.innerWidth / window.innerHeight;
     const halfW = Math.tan(fovRad * 0.5) * aspect * near;
+    
+    // We can reuse this._tempV5 for origin calculation since _activateProjectile copies the value immediately
+    const origin = this._tempV5;
 
     if (isOverdrive) {
       // Fire 4 spread lasers (X offset: -8, -4, 4, 8)
-      // Since halfW is a proportional coordinate, let's map these offsets scaled appropriately
       const scale = halfW * 0.45;
-      const origin1 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 2.0);
-      const origin2 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 1.0);
-      const origin3 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, scale * 1.0);
-      const origin4 = this.camera.position.clone().addScaledVector(camFwd, near).addScaledVector(camRight, scale * 2.0);
-
-      this._activateProjectile(toSpawn[0], origin1, laserVel, aimDir);
-      this._activateProjectile(toSpawn[1], origin2, laserVel, aimDir);
-      this._activateProjectile(toSpawn[2], origin3, laserVel, aimDir);
-      this._activateProjectile(toSpawn[3], origin4, laserVel, aimDir);
+      
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 2.0);
+      this._activateProjectile(toSpawn[0], origin, laserVel, aimDir);
+      
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, -scale * 1.0);
+      this._activateProjectile(toSpawn[1], origin, laserVel, aimDir);
+      
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, scale * 1.0);
+      this._activateProjectile(toSpawn[2], origin, laserVel, aimDir);
+      
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, scale * 2.0);
+      this._activateProjectile(toSpawn[3], origin, laserVel, aimDir);
     } else {
       // Standard L/R 2 lasers
-      const originL = this.camera.position.clone()
-        .addScaledVector(camFwd, near)
-        .addScaledVector(camRight, -halfW * 0.95);
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, -halfW * 0.95);
+      this._activateProjectile(toSpawn[0], origin, laserVel, aimDir);
 
-      const originR = this.camera.position.clone()
-        .addScaledVector(camFwd, near)
-        .addScaledVector(camRight, halfW * 0.95);
-
-      this._activateProjectile(toSpawn[0], originL, laserVel, aimDir);
-      this._activateProjectile(toSpawn[1], originR, laserVel, aimDir);
+      origin.copy(this.camera.position).addScaledVector(camFwd, near).addScaledVector(camRight, halfW * 0.95);
+      this._activateProjectile(toSpawn[1], origin, laserVel, aimDir);
     }
   }
 

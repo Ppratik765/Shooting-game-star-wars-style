@@ -156,9 +156,9 @@ impl ParticleEngine {
     /// Create a new particle engine.
     /// `max_particles`: 4000 desktop, 1500 mobile.
     #[wasm_bindgen(constructor)]
-    pub fn new(max_particles: u32, is_mobile: bool, is_light_mode: bool) -> ParticleEngine {
+    pub fn new(max_particles: u32, is_mobile: bool) -> ParticleEngine {
         ParticleEngine {
-            inner: InnerParticleEngine::new(max_particles, is_mobile, is_light_mode),
+            inner: InnerParticleEngine::new(max_particles, is_mobile),
         }
     }
 

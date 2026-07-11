@@ -547,7 +547,6 @@ export class UIManager {
     const rotVal = (dx / (window.innerWidth / 2)) * maxRot;
 
     ctx.clearRect(0, 0, this.arcCanvas.width, this.arcCanvas.height);
-    this._drawLensFlares(ctx);
 
     // --- LEFT ARC: Engine / Stamina ---
     const staminaRatio = playerState.stamina / playerState.maxStamina;
@@ -617,56 +616,7 @@ export class UIManager {
     ctx.textAlign  = 'left';
   }
 
-  _drawLensFlares(ctx) {
-    if (!this.sunProjCoords || this.sunProjCoords.length === 0) return;
 
-    const hw = window.innerWidth / 2;
-    const hh = window.innerHeight / 2;
-
-    this.sunProjCoords.forEach(sun => {
-      const dx = sun.x - hw;
-      const dy = sun.y - hh;
-
-      const elements = [
-        { factor: 0.35, size: 25, type: 'ring' },
-        { factor: 0.55, size: 12, type: 'ring' },
-        { factor: 0.75, size: 45, type: 'hexagon' },
-        { factor: 0.95, size: 18, type: 'ring' },
-        { factor: 1.15, size: 65, type: 'hexagon' },
-        { factor: -0.25, size: 30, type: 'ring' },
-        { factor: -0.45, size: 15, type: 'ring' }
-      ];
-
-      elements.forEach(el => {
-        const fx = hw + dx * el.factor;
-        const fy = hh + dy * el.factor;
-
-        ctx.strokeStyle = sun.color;
-        ctx.lineWidth = 1;
-        ctx.fillStyle = sun.color;
-
-        ctx.beginPath();
-        if (el.type === 'ring') {
-          ctx.arc(fx, fy, el.size, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(fx, fy, el.size * 0.95, 0, Math.PI * 2);
-          ctx.stroke();
-        } else {
-          // Hexagon
-          for (let side = 0; side < 6; side++) {
-            const angle = (side / 6) * Math.PI * 2;
-            const hx = fx + Math.cos(angle) * el.size;
-            const hy = fy + Math.sin(angle) * el.size;
-            if (side === 0) ctx.moveTo(hx, hy);
-            else ctx.lineTo(hx, hy);
-          }
-          ctx.closePath();
-          ctx.stroke();
-        }
-      });
-    });
-  }
 
   update(deltaTime, playerState, gameState, chargeState, camera, isRadarJammed, activePowerUp = null, powerUpTimeRemaining = 0.0) {
     this.isRadarJammed = !!isRadarJammed;
@@ -697,24 +647,7 @@ export class UIManager {
       radarContainer.classList.toggle('jammed', this.isRadarJammed);
     }
 
-    // Project Suns for Lens Flare drawing
-    const hw = window.innerWidth / 2;
-    const hh = window.innerHeight / 2;
-    this.sunProjCoords = [];
 
-    if (camera) {
-      [SUN1_POS, SUN2_POS].forEach((sunPos, idx) => {
-        const pos = sunPos.clone().project(camera);
-        if (pos.z < 1 && pos.z > 0) {
-          const px = pos.x * hw + hw;
-          const py = -(pos.y * hh) + hh;
-          this.sunProjCoords.push({
-            x: px, y: py,
-            color: idx === 0 ? 'rgba(255, 153, 0, 0.08)' : 'rgba(0, 170, 255, 0.08)'
-          });
-        }
-      });
-    }
 
     // Crosshair lerp - instantaneous on mobile, lerped on desktop
     if (this.isMobile) {

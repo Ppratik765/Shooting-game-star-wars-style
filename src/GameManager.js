@@ -44,15 +44,14 @@ function createCircularGlowTexture(colorHex, coreColorHex = '#ffffff') {
 }
 
 export class GameManager {
-  constructor(scene, camera, isMobile = false, isAutoplay = false, isLightMode = false) {
+  constructor(scene, camera, isMobile = false) {
     this.scene = scene;
     this.camera = camera;
     this.isDead = false;
     this.isPaused = false;
     this.isStarted = false;
     this.isMobile = isMobile;
-    this.isAutoplay = isAutoplay;
-    this.isLightMode = isLightMode;
+
 
     this.state = { timeSurvived: 0, kills: 0 };
 
@@ -84,7 +83,7 @@ export class GameManager {
     this.killCamExplosionPos = null;
 
     this.uiManager = new UIManager();
-    this.inputController = new InputController(this.isAutoplay);
+    this.inputController = new InputController();
     this.playerShip = new PlayerShip(this.camera);
 
     // Reusable temp structures to avoid garbage collection
@@ -96,20 +95,19 @@ export class GameManager {
     this.introStartYaw = this.playerShip.yaw;
 
     this.terrain = new Terrain(this.scene, isMobile);
-    this.particleSystem = new ParticleSystem(this.scene, isMobile, this.isLightMode);
-    this.powerUpManager = new PowerUpManager(this.scene, isMobile);
-    this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile, this.isLightMode);
+    this.particleSystem = new ParticleSystem(this.scene, isMobile);
+    this.terrain = new Terrain(this.scene, isMobile);
+    this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
+    this.enemyManager.terrain = this.terrain;
+
+    this.powerUpManager = new PowerUpManager(this.scene, this.playerShip);
     this.enemyManager.powerUpManager = this.powerUpManager;
-    this.audioManager = new AudioManager();
-    this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
-    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem, this.isLightMode);
+    this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
     this.speedLines = new SpeedLines(this.camera, isMobile ? 30 : 70);
 
     // Active power-up tracking state
     this.activePowerUp = null; // 'WEAPONS' or 'ENGINES'
     this.powerUpTimeRemaining = 0.0;
-
-    this.enemyManager.terrain = this.terrain;
 
     this.enemyManager.onEnemyKilled = () => {
       this.state.kills++;
@@ -371,31 +369,6 @@ export class GameManager {
       title.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     };
     document.addEventListener('mousemove', this._parallaxHandler);
-
-    if (this.isAutoplay) {
-      this._finishIntro();
-      this.isStarted = true;
-      this.uiManager.startGame();
-      this.state.timeSurvived = 0;
-      if (this.audioManager) this.audioManager.resume();
-
-      // Suppress Mobile UI
-      const targetIds = ['mobile-controls', 'joystick-left', 'joystick-right', 'fire-button', 'ui-container'];
-      targetIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.style.setProperty('display', 'none', 'important');
-        }
-      });
-      // Aggressively hide via CSS to prevent elements added dynamically from showing
-      const style = document.createElement('style');
-      style.innerHTML = `
-        #mobile-controls, #joystick-left, #joystick-right, #fire-button, #ui-container {
-          display: none !important;
-        }
-      `;
-      document.head.appendChild(style);
-    }
   }
 
   _createStarfield() {
@@ -437,9 +410,7 @@ export class GameManager {
         colors[i * 3 + 2] = brightness;
       }
       
-      if (this.isLightMode) {
-        colors[i * 3] = 0;
-        colors[i * 3 + 1] = 0;
+  colors[i * 3 + 1] = 0;
         colors[i * 3 + 2] = 0;
       }
     }
@@ -449,10 +420,10 @@ export class GameManager {
     starGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const starMat = new THREE.PointsMaterial({
-      size: this.isLightMode ? 3.5 : 2.3, // Larger star points in light mode
-      vertexColors: true,
+      size: 2.3, // Larger star points in light mode
       transparent: true,
-      opacity: this.isLightMode ? 1.0 : 0.8, // Fully opaque in light mode
+      blending: THREE.AdditiveBlending,
+      opacity: 0.8, // Fully opaque in light mode
       sizeAttenuation: false,  // constant size regardless of distance
       fog: false
     });
@@ -644,125 +615,6 @@ export class GameManager {
     }
   }
 
-  _getAutopilotInput() {
-    const input = {
-      pitch: 0,
-      yaw: 0,
-      roll: 0,
-      throttle: 1, // Full speed forward
-      mouse: { x: window.innerWidth / 2, y: window.innerHeight / 2, movementX: 0, movementY: 0 },
-      isFiring: () => false,
-      isLocking: () => false,
-      isBoosting: () => false,
-      isForward: () => false,
-      isBackward: () => false,
-      isLeft: () => false,
-      isRight: () => false,
-      isMobile: false,
-      keys: {}
-    };
-
-    // Find nearest enemy (only if they are in front of us)
-    const enemies = this.enemyManager.getEnemies();
-    let nearest = null;
-    let minDist = Infinity;
-    const pPos = this.playerShip.camera.position;
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
-
-    for (let i = 0; i < enemies.length; i++) {
-      const e = enemies[i];
-      if (!e.active || e.dying) continue;
-      
-      const dirToEnemy = e.mesh.position.clone().sub(pPos).normalize();
-      const dotProduct = forward.dot(dirToEnemy);
-      
-      // Tight front cone (approx 45 degrees): ignore enemies that fly overhead or past us
-      if (dotProduct > 0.7) {
-        const d = pPos.distanceToSquared(e.mesh.position);
-        if (d < minDist) {
-          minDist = d;
-          nearest = e;
-        }
-      }
-    }
-
-    let targetPitch = -0.1;
-    let yawError = 0; // Positive means enemy is to the right
-
-    if (nearest) {
-      // Steer towards enemy roughly
-      const dirToEnemy = nearest.mesh.position.clone().sub(pPos).normalize();
-      const localTarget = dirToEnemy.clone().applyQuaternion(this.playerShip.camera.quaternion.clone().invert());
-      
-      yawError = localTarget.x;
-      targetPitch = localTarget.y * 1.5;
-
-      const screenPos = nearest.mesh.position.clone();
-      screenPos.project(this.camera);
-      input.mouse.x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
-      input.mouse.y = (-(screenPos.y) * 0.5 + 0.5) * window.innerHeight;
-      
-      // Fire if enemy is somewhat centered (add random burstiness to feel more human)
-      if (localTarget.z < 0 && Math.abs(localTarget.x) < 0.25 && Math.abs(localTarget.y) < 0.25) {
-        if (Math.random() < 0.7) {
-          input.isFiring = () => true;
-        }
-      }
-    } else {
-      // Idle wander: gentle snaking motion when no enemies are around to keep it looking alive
-      const time = performance.now() * 0.001;
-      yawError = Math.sin(time * 0.6) * 0.15;
-      targetPitch = (Math.sin(time * 0.4) * 0.1) - 0.1;
-      
-      input.mouse.x = window.innerWidth / 2;
-      input.mouse.y = window.innerHeight / 2;
-    }
-
-    // Terrain avoidance (look ahead)
-    const futurePos = pPos.clone();
-    futurePos.addScaledVector(forward, 800);
-    const terrainH = this.terrain.getHeightAt(futurePos.x, futurePos.z);
-    
-    // Keep altitude low enough and maintain decent flight level
-    if (pPos.y > 1200) {
-      targetPitch -= 0.6; // Push down more aggressively if too high
-    } else if (pPos.y > 600) {
-      targetPitch -= 0.2; // Gentle push down to stay low
-    }
-
-    if (futurePos.y < terrainH + 400) {
-      targetPitch = 0.5; // CRITICAL: Force nose up to avoid terrain, overriding any enemy dives
-    }
-
-    // Absolutely prevent stalling by clamping target pitch (stall is 0.8)
-    // We MUST allow positive pitch so the ship can climb over mountains!
-    targetPitch = Math.max(-0.6, Math.min(0.5, targetPitch));
-
-    // Auto recover if currently stalled
-    if (this.playerShip.isStalled) {
-      input.keys.Control = true;
-      targetPitch = -0.5;
-    }
-
-    // Proportional control for smooth steering
-    const pitchError = targetPitch - this.playerShip.pitch;
-
-    if (typeof this.autoYawDelta === 'undefined') {
-      this.autoPitchDelta = 0;
-      this.autoYawDelta = 0;
-    }
-    
-    // Smooth the inputs
-    this.autoPitchDelta += (pitchError - this.autoPitchDelta) * 0.1;
-    this.autoYawDelta += (yawError - this.autoYawDelta) * 0.1;
-
-    // Convert desired steering into mock mouse movements (desktop flight uses these)
-    input.mouse.movementY = -this.autoPitchDelta / 0.0028 * 0.08;
-    input.mouse.movementX = this.autoYawDelta / 0.0028 * 0.15; // Stronger yaw tracking
-
-    return input;
-  }
-
   update(deltaTime, currentTime) {
     if (this.isPaused) {
       this.inputController.consumeMovement();
@@ -787,14 +639,10 @@ export class GameManager {
       isSlowMo = true;
     }
 
-    const activeInput = this.isAutoplay ? this._getAutopilotInput() : this.inputController;
+    const activeInput = this.inputController;
 
     // Consume accumulated input — cap mouse deltas before any physics
-    if (!this.isAutoplay) {
-      this.inputController.consumeMovement();
-    } else {
-      this.playerShip.hp = this.playerShip.maxHp; // Lock HP
-    }
+    this.inputController.consumeMovement();
 
     // 2. Automated Intro Cinematic sequence
     if (!this.isStarted) {
@@ -831,7 +679,7 @@ export class GameManager {
       this.playerShip.update(deltaTime, activeInput, this.terrain, true); // true = isIntro
       this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
       this.skyGroup.position.copy(this.playerShip.camera.position);
-      if (!this.isAutoplay) this.inputController.clearDeltas();
+      this.inputController.clearDeltas();
       return;
     }
 
@@ -947,10 +795,6 @@ export class GameManager {
     }
 
     // 5. Update game entities (applying slow-mo actualDelta)
-    if (this.isAutoplay) {
-      this.playerShip.stallTimer = 0;
-      this.playerShip.isStalled = false;
-    }
     this.playerShip.update(actualDelta, activeInput, this.terrain, false);
     
     // Copy lightning flash factor to terrain shader
@@ -1045,7 +889,7 @@ export class GameManager {
     const activePowerUps = this.powerUpManager ? this.powerUpManager.pool.filter(item => item.active) : [];
     this.uiManager.updateEnemyUI(this.camera, this.enemyManager.getEnemies(), this.weaponSystem.lockedEnemy, activePowerUps);
 
-    if (!this.isAutoplay) this.inputController.clearDeltas();
+    this.inputController.clearDeltas();
 
     this._checkPlayerCollisions();
     this._checkDeathConditions();
@@ -1085,7 +929,7 @@ export class GameManager {
   }
 
   _checkDeathConditions() {
-    if (this.isAutoplay) return;
+
 
     if (this.playerShip.terrainCrashed) {
       this._startDeathSequence('TERRAIN IMPACT — SHIP DESTROYED');
@@ -1242,7 +1086,7 @@ export class GameManager {
       const offset = new THREE.Vector3(0, 15, 30).applyQuaternion(this.ejectPod.quaternion);
       this.camera.position.copy(this.ejectPod.position).add(offset);
 
-      if (!this.xwingExploded && this.xwingMesh) {
+      if (this.xwingMesh) {
         this.camera.lookAt(this.xwingMesh.position);
       } else {
         const site = this.xwingMesh ? this.xwingMesh.position : this.ejectPod.position;

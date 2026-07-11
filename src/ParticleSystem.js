@@ -4,21 +4,21 @@ import { ParticleEngine, wasm } from './wasm.js';
 const memory = wasm.memory;
 
 export class ParticleSystem {
-  constructor(scene, isMobile = false, isLightMode = false) {
+  constructor(scene, isMobile = false) {
     this.scene = scene;
     this.isMobile = isMobile;
-    this.isLightMode = isLightMode;
+
 
     this.maxParticles = isMobile ? 1500 : 4000;
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshBasicMaterial({ color: this.isLightMode ? 0x00ccff : 0xffaa00 });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
 
     this.instancedMesh = new THREE.InstancedMesh(geometry, material, this.maxParticles);
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.scene.add(this.instancedMesh);
 
     // Instantiate the Rust particle engine
-    this.engine = new ParticleEngine(this.maxParticles, isMobile, isLightMode);
+    this.engine = new ParticleEngine(this.maxParticles, isMobile);
 
     // Create Float32Array views into Wasm memory for zero-copy buffer reads
     this._refreshBufferViews();
@@ -119,24 +119,17 @@ export class ParticleSystem {
 
   // === SHOCKWAVE: expanding yellow ring that follows terrain ===
   // Stays entirely in JS — creates/destroys Three.js geometry
-  spawnShockwave(position, terrain) {
-    const config = this.isMobile ? [
-      { maxRadius: 150, maxAge: 1.5, opacity: 1.0 },
-      { maxRadius: 240, maxAge: 2.2, opacity: 0.95 },
-      { maxRadius: 330, maxAge: 2.9, opacity: 0.9 }
-    ] : [
-      { maxRadius: 150, maxAge: 1.5, opacity: 0.9 },
-      { maxRadius: 240, maxAge: 2.2, opacity: 0.7 },
-      { maxRadius: 330, maxAge: 2.9, opacity: 0.5 }
+  spawnShockwave(position, terrain = null) {
+    const config = [
+      { maxRadius: 250, maxAge: 1.2, opacity: 0.8 },
+      { maxRadius: 400, maxAge: 1.6, opacity: 0.5 }
     ];
 
-    for (const c of config) {
-      const ringSeg = this.isMobile ? 16 : 32;
-      const ringGeom = new THREE.RingGeometry(0.5, 3.0, ringSeg);
-      ringGeom.rotateX(-Math.PI / 2);
+    const segments = this.isMobile ? 16 : 32;
 
+    for (const c of config) {
       const ringMat = new THREE.MeshBasicMaterial({
-        color: this.isLightMode ? 0x00ccff : 0xffdd00,
+        color: 0xffaa00,
         transparent: true,
         opacity: c.opacity,
         side: THREE.DoubleSide,
@@ -144,23 +137,41 @@ export class ParticleSystem {
         depthWrite: false
       });
 
+      // Create a reusable dynamic geometry
+      const ringGeom = new THREE.BufferGeometry();
+      const vertices = new Float32Array((segments + 1) * 2 * 3);
+      const indices = [];
+      for (let i = 0; i < segments; i++) {
+        const inner = i;
+        const outer = i + segments + 1;
+        const nextInner = i + 1;
+        const nextOuter = i + segments + 2;
+        indices.push(inner, outer, nextInner);
+        indices.push(nextInner, outer, nextOuter);
+      }
+      ringGeom.setIndex(indices);
+      ringGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
       const ring = new THREE.Mesh(ringGeom, ringMat);
       ring.position.copy(position);
       this.scene.add(ring);
 
       this.shockwaves.push({
         mesh: ring,
-        origin: position.clone(),
+        origin: this._tempV1 ? this._tempV1.copy(position).clone() : position.clone(),
         age: 0,
         maxAge: c.maxAge,
         maxRadius: c.maxRadius,
         startOpacity: c.opacity,
-        terrain: terrain
+        terrain: terrain,
+        segments: segments
       });
     }
   }
 
   _updateShockwaves(deltaTime) {
+    if (!this._tempColor) this._tempColor = new THREE.Color();
+    
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const sw = this.shockwaves[i];
       sw.age += deltaTime;
@@ -177,29 +188,33 @@ export class ParticleSystem {
       const currentRadius = sw.maxRadius * t;
       const innerRadius = Math.max(0.5, currentRadius - 6);
       const outerRadius = currentRadius;
-
-      sw.mesh.geometry.dispose();
-      const ringSeg = this.isMobile ? 16 : 32;
-      const newGeom = new THREE.RingGeometry(innerRadius, outerRadius, ringSeg);
-      newGeom.rotateX(-Math.PI / 2);
-
-      if (sw.terrain) {
-        const pos = newGeom.attributes.position;
-        for (let v = 0; v < pos.count; v++) {
-          const wx = pos.getX(v) + sw.origin.x;
-          const wz = pos.getZ(v) + sw.origin.z;
-          const terrainH = sw.terrain.getHeightAt(wx, wz);
-          pos.setY(v, terrainH - sw.origin.y + 2);
-        }
-        pos.needsUpdate = true;
+      
+      const pos = sw.mesh.geometry.attributes.position;
+      const segments = sw.segments;
+      
+      for (let s = 0; s <= segments; s++) {
+        const theta = (s / segments) * Math.PI * 2;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+        
+        // Inner vertex
+        const ix = cosT * innerRadius;
+        const iz = sinT * innerRadius;
+        const iy = sw.terrain ? (sw.terrain.getHeightAt(ix + sw.origin.x, iz + sw.origin.z) - sw.origin.y + 2) : 0;
+        pos.setXYZ(s, ix, iy, iz);
+        
+        // Outer vertex
+        const ox = cosT * outerRadius;
+        const oz = sinT * outerRadius;
+        const oy = sw.terrain ? (sw.terrain.getHeightAt(ox + sw.origin.x, oz + sw.origin.z) - sw.origin.y + 2) : 0;
+        pos.setXYZ(s + segments + 1, ox, oy, oz);
       }
+      
+      pos.needsUpdate = true;
 
-      sw.mesh.geometry = newGeom;
       sw.mesh.material.opacity = sw.startOpacity * (1.0 - t * t);
-
-      const color = new THREE.Color();
-      color.lerpColors(new THREE.Color(0xffdd00), new THREE.Color(0xff6600), t);
-      sw.mesh.material.color.copy(color);
+      this._tempColor.lerpColors(new THREE.Color(0xffdd00), new THREE.Color(0xff6600), t);
+      sw.mesh.material.color.copy(this._tempColor);
     }
   }
 

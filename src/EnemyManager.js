@@ -113,7 +113,7 @@ export class EnemyManager {
     });
 
     for (let i = 0; i < this.maxEnemyProjectiles; i++) {
-      const mesh = new THREE.Mesh(bulletGeom, bulletMat.clone());
+      const mesh = new THREE.Mesh(bulletGeom, bulletMat);
       mesh.visible = false;
       this.scene.add(mesh);
       this.enemyProjectiles.push({
@@ -665,6 +665,201 @@ export class EnemyManager {
     if (this.onEnemyCrashed) this.onEnemyCrashed(crashPos);
 
     // Place diamond death marker
+  }
+
+  _updateEnemyProjectiles(deltaTime) {
+    const playerPos = this.playerShip.camera.position;
+    for (let i = 0; i < this.maxEnemyProjectiles; i++) {
+      const p = this.enemyProjectiles[i];
+      if (!p.active) continue;
+      p.age += deltaTime;
+      if (p.age > p.maxAge) { p.active = false; p.mesh.visible = false; continue; }
+      p.mesh.position.addScaledVector(p.velocity, deltaTime);
+
+      // Terrain collision — enemy laser hits ground
+      if (this.terrain) {
+        const tH = this.terrain.getHeightAt(p.mesh.position.x, p.mesh.position.z);
+        if (p.mesh.position.y <= tH + 2) {
+          const impactPos = this._tempV2.copy(p.mesh.position);
+          impactPos.y = tH;
+          this.particleSystem.spawnLaserImpact(impactPos);
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+      }
+
+      const hit = point_in_sphere_sq(
+        p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
+        playerPos.x, playerPos.y, playerPos.z,
+        144.0
+      );
+
+      if (hit) {
+        p.active = false;
+        p.mesh.visible = false;
+        if (!this.playerShip.shieldActive) {
+          this.playerShip.hp -= 8;
+        }
+        if (this.onPlayerHit) this.onPlayerHit();
+      }
+    }
+  }
+
+  _spawnFormation() {
+    const playerPos = this.playerShip.camera.position;
+    const playerFwd = new THREE.Vector3();
+    this.playerShip.camera.getWorldDirection(playerFwd);
+
+    // Bias spawns to be in front of the player (within FOV)
+    const isForwardSpawn = Math.random() < 0.85; // 85% in front, 15% anywhere
+    let spawnDir = new THREE.Vector3();
+    if (isForwardSpawn) {
+      const playerFwdH = new THREE.Vector3(playerFwd.x, 0, playerFwd.z).normalize();
+      const offsetAngle = (Math.random() - 0.5) * (140 * Math.PI / 180); // +/- 70 degrees offset
+      spawnDir.copy(playerFwdH).applyAxisAngle(new THREE.Vector3(0, 1, 0), offsetAngle).normalize();
+    } else {
+      const spawnAngle = Math.random() * Math.PI * 2;
+      spawnDir.set(Math.sin(spawnAngle), 0, Math.cos(spawnAngle));
+    }
+
+    const spawnRadius = 500 + Math.random() * 200;
+    const basePos = playerPos.clone().addScaledVector(spawnDir, spawnRadius);
+    basePos.y = playerPos.y + (Math.random() - 0.5) * 100 + 50;
+
+    const formations = ['v_form', 'line', 'diamond', 'swarm'];
+    const formType = formations[Math.floor(Math.random() * formations.length)];
+    const count = 2 + Math.floor(Math.random() * 3);
+
+    const freeEnemies = this.enemies.filter(e => !e.active).slice(0, count);
+    if (freeEnemies.length === 0) return;
+
+    const formOffsets = this._getFormationOffsets(formType, freeEnemies.length);
+
+    const strategies = ['chase', 'high_alt', 'trench', 'flanker', 'interceptor'];
+    const groupStrategy = strategies[Math.floor(Math.random() * strategies.length)];
+
+    freeEnemies.forEach((enemy, s) => {
+      const offset = formOffsets[s] || new THREE.Vector3();
+      enemy.mesh.position.copy(basePos).add(offset);
+
+      if (this.terrain) {
+        const tH = this.terrain.getHeightAt(enemy.mesh.position.x, enemy.mesh.position.z);
+        enemy.mesh.position.y = Math.max(enemy.mesh.position.y, tH + 60);
+      }
+
+      enemy.hp = 5;
+      enemy.maxHp = 5;
+      enemy.active = true;
+      enemy.dying = false;
+      enemy.dyingTimer = 0;
+      enemy.mesh.visible = true;
+      enemy.fireTimer = Math.random() * 2;
+      enemy.strategy = groupStrategy;
+      enemy.evasionTimer = Math.random() * 2;
+      enemy.velocity.set(0, 0, 0);
+      enemy.angularVel.set(0, 0, 0);
+
+      enemy.flybyState = 'approach';
+      enemy.flybyOffset.set(0, 0, 0);
+      enemy.turnTimer = 0;
+
+      if (s === 0) {
+        enemy.isLeader = true;
+        enemy.formationLeader = null;
+        enemy.formationOffset.set(0, 0, 0);
+      } else {
+        enemy.isLeader = false;
+        enemy.formationLeader = freeEnemies[0];
+        enemy.formationOffset.copy(formOffsets[s]);
+      }
+    });
+  }
+
+  _getFormationOffsets(formType, count) {
+    const offsets = [new THREE.Vector3(0, 0, 0)];
+    if (formType === 'v_form') {
+      for (let i = 1; i < count; i++) {
+        const side = i % 2 === 0 ? 1 : -1;
+        offsets.push(new THREE.Vector3(side * i * 25, -10 * i, 20 * i));
+      }
+    } else if (formType === 'line') {
+      for (let i = 1; i < count; i++) {
+        offsets.push(new THREE.Vector3(0, 0, i * 40));
+      }
+    } else if (formType === 'diamond') {
+      const dOffsets = [
+        new THREE.Vector3(35, 0, 20),
+        new THREE.Vector3(-35, 0, 20),
+        new THREE.Vector3(0, 0, 40)
+      ];
+      for (let i = 1; i < count; i++) offsets.push(dOffsets[i - 1] || new THREE.Vector3(i * 30, 0, 0));
+    } else { // swarm
+      for (let i = 1; i < count; i++) {
+        offsets.push(new THREE.Vector3(
+          (Math.random() - 0.5) * 120,
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 120
+        ));
+      }
+    }
+    return offsets;
+  }
+
+  damageEnemy(enemy, amount) {
+    if (!enemy.active || enemy.dying) return;
+    enemy.hp -= amount;
+    if (enemy.hp <= 0) this.killEnemy(enemy, false);
+  }
+
+  killEnemy(enemy, crashedIntoTerrain) {
+    // Orphan any wingmen following this enemy
+    for (const e of this.enemies) {
+      if (e.formationLeader === enemy) {
+        e.formationLeader = null;
+        e.formationOffset.set(0, 0, 0);
+      }
+    }
+
+    if (crashedIntoTerrain) {
+      // Already at terrain — immediate crash
+      this._crashEnemy(enemy);
+    } else {
+      // Enter dying state — projectile motion fall
+      enemy.dying = true;
+      enemy.dyingTimer = 0;
+      // Throw the enemy forward faster than the player so the crash is visible
+      const playerFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShip.camera.quaternion);
+      const pushSpeed = this.playerShip.velocity.length() + 150; // Fly ahead
+      enemy.velocity.copy(playerFwd).multiplyScalar(pushSpeed);
+      enemy.velocity.y -= 40; // Slight downward nudge to start falling
+      // Random tumble angular velocity
+      enemy.angularVel.set(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 4
+      );
+    }
+
+    if (this.onEnemyKilled) this.onEnemyKilled();
+  }
+
+  _crashEnemy(enemy) {
+    const crashPos = enemy.mesh.position.clone();
+
+    // Deactivate
+    enemy.active = false;
+    enemy.dying = false;
+    enemy.mesh.visible = false;
+
+    // Ground explosion + shockwave
+    this.particleSystem.spawnGroundExplosion(crashPos);
+    this.particleSystem.spawnShockwave(crashPos, this.terrain);
+
+    // Trigger ground contact crash explosion sound
+    if (this.onEnemyCrashed) this.onEnemyCrashed(crashPos);
+
+    // Place diamond death marker
     this._placeDeathMarker(crashPos);
 
     // Salvage check: 20% chance to spawn a power-up on ground collision
@@ -675,7 +870,7 @@ export class EnemyManager {
 
   _placeDeathMarker(position) {
     // Create a large diamond sprite at crash location
-    const sprite = new THREE.Sprite(this.markerMat.clone());
+    const sprite = new THREE.Sprite(this.markerMat);
     sprite.position.copy(position);
     sprite.position.y += 10; // slightly above terrain
     sprite.scale.set(12, 12, 1);
@@ -707,7 +902,6 @@ export class EnemyManager {
     // Clear death markers
     for (const marker of this.deathMarkers) {
       this.scene.remove(marker);
-      marker.material.dispose();
     }
     this.deathMarkers.length = 0;
     this.spawnTimer = 0;

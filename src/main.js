@@ -9,34 +9,15 @@ const appContainer = document.getElementById('app');
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
 
-const urlParams = new URLSearchParams(window.location.search);
-const isAutoplay = urlParams.get('autoplay') === 'true';
-const isLightMode = urlParams.get('theme') === 'light';
+
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 // Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate
 renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
-renderer.toneMapping = isLightMode ? THREE.NoToneMapping : THREE.ReinhardToneMapping;
+renderer.toneMapping = THREE.ReinhardToneMapping;
 
-// If autoplay is enabled, hide non-essential UI elements so the screen is clean for backgrounds
-if (isAutoplay) {
-  const style = document.createElement('style');
-  style.innerHTML = `
-    #landscape-prompt { display: none !important; }
-    #hud-top-container,
-    #radar-container,
-    #compass-container,
-    #meters-container,
-    #warning-container,
-    #powerup-timer-container,
-    #target-lock,
-    #settings-btn {
-      display: none !important;
-    }
-  `;
-  document.head.appendChild(style);
-}
+
 appContainer.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -46,7 +27,7 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 
 // Post-processing — skip bloom entirely on mobile (biggest GPU savings)
 let composer = null;
-let useComposer = !isMobile && !isLightMode;
+let useComposer = !isMobile;
 
 if (useComposer) {
   const renderScene = new RenderPass(scene, camera);
@@ -62,7 +43,7 @@ if (useComposer) {
 }
 
 // Game — pass isMobile so subsystems can scale down
-const gameManager = new GameManager(scene, camera, isMobile, isAutoplay, isLightMode);
+const gameManager = new GameManager(scene, camera, isMobile);
 
 // Resize
 function triggerResize() {

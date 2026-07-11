@@ -1,6 +1,5 @@
 export class InputController {
-  constructor(isAutoplay = false) {
-    this.isAutoplay = isAutoplay;
+  constructor() {
     this.keys = {};
 
     // Load settings from localStorage
@@ -72,7 +71,7 @@ export class InputController {
     this.mobileBoost = false;
 
     this._initListeners();
-    if (this.isMobile && !this.isAutoplay) {
+    if (this.isMobile) {
       this._initMobileUI();
       this._initGyro();
     }
@@ -346,7 +345,7 @@ export class InputController {
 
     // One-shot fullscreen on first mobile interaction
     const triggerFS = () => {
-      if (!this.isMobile || this.isAutoplay) return;
+      if (!this.isMobile) return;
       window.removeEventListener('touchstart', triggerFS);
       window.removeEventListener('click', triggerFS);
       const docEl = document.documentElement;
