@@ -1,9 +1,13 @@
 import * as THREE from 'three';
+import { ParticleEngine, wasm } from './wasm.js';
+
+const memory = wasm.memory;
 
 export class ParticleSystem {
   constructor(scene, isMobile = false) {
     this.scene = scene;
     this.isMobile = isMobile;
+
 
     this.maxParticles = isMobile ? 1500 : 4000;
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -13,54 +17,57 @@ export class ParticleSystem {
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.scene.add(this.instancedMesh);
 
-    this.particles = [];
-    for (let i = 0; i < this.maxParticles; i++) {
-      this.particles.push({
-        active: false,
-        position: new THREE.Vector3(),
-        velocity: new THREE.Vector3(),
-        age: 0,
-        life: 0,
-        color: new THREE.Color()
-      });
-    }
+    // Instantiate the Rust particle engine
+    this.engine = new ParticleEngine(this.maxParticles, isMobile);
 
-    this.dummy = new THREE.Object3D();
+    // Create Float32Array views into Wasm memory for zero-copy buffer reads
+    this._refreshBufferViews();
+
     this.debrisPool = [];
 
-    // === Shockwave system ===
+    // === Shockwave system (stays in JS — manipulates Three.js geometry) ===
     this.shockwaves = [];
   }
 
+  /// Re-create buffer views. Must be called after any Wasm memory growth.
+  _refreshBufferViews() {
+    this.matrixView = new Float32Array(memory.buffer, this.engine.get_matrix_ptr(), this.maxParticles * 16);
+    this.colorView = new Float32Array(memory.buffer, this.engine.get_color_ptr(), this.maxParticles * 3);
+  }
+
   update(deltaTime, terrain) {
-    let count = 0;
+    // Tick the Rust particle engine
+    const activeCount = this.engine.update(deltaTime);
 
-    for (let i = 0; i < this.maxParticles; i++) {
-      const p = this.particles[i];
-      if (!p.active) continue;
-
-      p.age += deltaTime;
-      if (p.age >= p.life) { p.active = false; continue; }
-
-      p.velocity.y -= 25.0 * deltaTime;
-      p.position.addScaledVector(p.velocity, deltaTime);
-
-      this.dummy.position.copy(p.position);
-      const scale = Math.max(0, 1.0 - (p.age / p.life));
-      this.dummy.scale.set(scale, scale, scale);
-      this.dummy.updateMatrix();
-      this.instancedMesh.setMatrixAt(count, this.dummy.matrix);
-      this.instancedMesh.setColorAt(count, p.color);
-      count++;
+    // Refresh views in case Wasm memory was resized (rare but safe)
+    if (this.matrixView.buffer !== memory.buffer) {
+      this._refreshBufferViews();
     }
 
-    this.instancedMesh.count = count;
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
-    if (this.instancedMesh.instanceColor) {
+    // Map Wasm matrix buffer directly to InstancedMesh
+    if (activeCount > 0) {
+      const matArr = this.instancedMesh.instanceMatrix.array;
+      const needed = activeCount * 16;
+      // Copy from Wasm buffer into Three.js instanceMatrix array
+      matArr.set(this.matrixView.subarray(0, needed));
+
+      // Map Wasm color buffer to instanceColor
+      // Three.js creates instanceColor lazily on first setColorAt,
+      // so we may need to initialize it
+      if (!this.instancedMesh.instanceColor) {
+        // Force-create instanceColor by setting color at index 0
+        this.instancedMesh.setColorAt(0, new THREE.Color(1, 1, 1));
+      }
+      const colArr = this.instancedMesh.instanceColor.array;
+      const colNeeded = activeCount * 3;
+      colArr.set(this.colorView.subarray(0, colNeeded));
       this.instancedMesh.instanceColor.needsUpdate = true;
     }
 
-    // Update falling debris
+    this.instancedMesh.count = activeCount;
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+
+    // Update falling debris (stays in JS — small array, uses terrain.getHeightAt)
     for (let i = this.debrisPool.length - 1; i >= 0; i--) {
       const d = this.debrisPool[i];
       d.velocity.y -= 35.0 * deltaTime;
@@ -80,31 +87,15 @@ export class ParticleSystem {
       }
     }
 
-    // Update shockwaves
+    // Update shockwaves (stays in JS — manipulates Three.js RingGeometry)
     this._updateShockwaves(deltaTime);
   }
 
   spawnAirburst(position) {
     const burstCount = this.isMobile ? 50 : 120;
-    for (let i = 0; i < burstCount; i++) {
-      const p = this._getFree();
-      if (!p) break;
-      p.active = true;
-      p.position.copy(position);
-      p.velocity.set(
-        (Math.random() - 0.5) * 140,
-        (Math.random() - 0.5) * 140,
-        (Math.random() - 0.5) * 140
-      );
-      p.age = 0;
-      p.life = 0.3 + Math.random() * 0.7;
-      const r = Math.random();
-      if (r > 0.8) p.color.setHex(0xffffff);
-      else if (r > 0.4) p.color.setHex(0xffaa00);
-      else p.color.setHex(0xff0000);
-    }
+    this.engine.spawn_airburst(position.x, position.y, position.z, burstCount);
 
-    // Debris that falls to ground
+    // Debris that falls to ground (stays in JS)
     this.debrisPool.push({
       position: position.clone(),
       velocity: new THREE.Vector3(
@@ -118,63 +109,27 @@ export class ParticleSystem {
 
   spawnGroundExplosion(position) {
     const groundCount = this.isMobile ? 30 : 80;
-    for (let i = 0; i < groundCount; i++) {
-      const p = this._getFree();
-      if (!p) break;
-      p.active = true;
-      p.position.copy(position);
-      p.velocity.set(
-        (Math.random() - 0.5) * 100,
-        Math.random() * 50,
-        (Math.random() - 0.5) * 100
-      );
-      p.age = 0;
-      p.life = 0.8 + Math.random() * 1.2;
-      p.color.setHex(Math.random() > 0.5 ? 0xff0000 : 0xff6600);
-    }
+    this.engine.spawn_ground_explosion(position.x, position.y, position.z, groundCount);
   }
 
   spawnLaserImpact(position) {
     const count = this.isMobile ? 8 : 20;
-    for (let i = 0; i < count; i++) {
-      const p = this._getFree();
-      if (!p) break;
-      p.active = true;
-      p.position.copy(position);
-      p.velocity.set(
-        (Math.random() - 0.5) * 60,
-        Math.random() * 35,
-        (Math.random() - 0.5) * 60
-      );
-      p.age = 0;
-      p.life = 0.2 + Math.random() * 0.4;
-      const r = Math.random();
-      if (r > 0.6) p.color.setHex(0xff0000);
-      else if (r > 0.3) p.color.setHex(0xff4400);
-      else p.color.setHex(0xff8800);
-    }
+    this.engine.spawn_laser_impact(position.x, position.y, position.z, count);
   }
 
   // === SHOCKWAVE: expanding yellow ring that follows terrain ===
-  spawnShockwave(position, terrain) {
-    const config = this.isMobile ? [
-      { maxRadius: 150, maxAge: 1.5, opacity: 1.0 },
-      { maxRadius: 240, maxAge: 2.2, opacity: 0.95 },
-      { maxRadius: 330, maxAge: 2.9, opacity: 0.9 }
-    ] : [
-      { maxRadius: 150, maxAge: 1.5, opacity: 0.9 },
-      { maxRadius: 240, maxAge: 2.2, opacity: 0.7 },
-      { maxRadius: 330, maxAge: 2.9, opacity: 0.5 }
+  // Stays entirely in JS — creates/destroys Three.js geometry
+  spawnShockwave(position, terrain = null) {
+    const config = [
+      { maxRadius: 250, maxAge: 1.2, opacity: 0.8 },
+      { maxRadius: 400, maxAge: 1.6, opacity: 0.5 }
     ];
 
-    for (const c of config) {
-      // Create a ring mesh that expands from crash point
-      const ringSeg = this.isMobile ? 16 : 32;
-      const ringGeom = new THREE.RingGeometry(0.5, 3.0, ringSeg);
-      ringGeom.rotateX(-Math.PI / 2); // lay flat on XZ plane
+    const segments = this.isMobile ? 16 : 32;
 
+    for (const c of config) {
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xffdd00,
+        color: 0xffaa00,
         transparent: true,
         opacity: c.opacity,
         side: THREE.DoubleSide,
@@ -182,23 +137,41 @@ export class ParticleSystem {
         depthWrite: false
       });
 
+      // Create a reusable dynamic geometry
+      const ringGeom = new THREE.BufferGeometry();
+      const vertices = new Float32Array((segments + 1) * 2 * 3);
+      const indices = [];
+      for (let i = 0; i < segments; i++) {
+        const inner = i;
+        const outer = i + segments + 1;
+        const nextInner = i + 1;
+        const nextOuter = i + segments + 2;
+        indices.push(inner, outer, nextInner);
+        indices.push(nextInner, outer, nextOuter);
+      }
+      ringGeom.setIndex(indices);
+      ringGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
       const ring = new THREE.Mesh(ringGeom, ringMat);
       ring.position.copy(position);
       this.scene.add(ring);
 
       this.shockwaves.push({
         mesh: ring,
-        origin: position.clone(),
+        origin: this._tempV1 ? this._tempV1.copy(position).clone() : position.clone(),
         age: 0,
         maxAge: c.maxAge,
         maxRadius: c.maxRadius,
         startOpacity: c.opacity,
-        terrain: terrain
+        terrain: terrain,
+        segments: segments
       });
     }
   }
 
   _updateShockwaves(deltaTime) {
+    if (!this._tempColor) this._tempColor = new THREE.Color();
+    
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const sw = this.shockwaves[i];
       sw.age += deltaTime;
@@ -215,46 +188,100 @@ export class ParticleSystem {
       const currentRadius = sw.maxRadius * t;
       const innerRadius = Math.max(0.5, currentRadius - 6);
       const outerRadius = currentRadius;
-
-      // Rebuild ring geometry at current radius
-      sw.mesh.geometry.dispose();
-      const ringSeg = this.isMobile ? 16 : 32;
-      const newGeom = new THREE.RingGeometry(innerRadius, outerRadius, ringSeg);
-      newGeom.rotateX(-Math.PI / 2);
-
-      // Displace ring vertices to follow terrain
-      if (sw.terrain) {
-        const pos = newGeom.attributes.position;
-        for (let v = 0; v < pos.count; v++) {
-          const wx = pos.getX(v) + sw.origin.x;
-          const wz = pos.getZ(v) + sw.origin.z;
-          const terrainH = sw.terrain.getHeightAt(wx, wz);
-          pos.setY(v, terrainH - sw.origin.y + 2); // offset relative to origin
-        }
-        pos.needsUpdate = true;
+      
+      const pos = sw.mesh.geometry.attributes.position;
+      const segments = sw.segments;
+      
+      for (let s = 0; s <= segments; s++) {
+        const theta = (s / segments) * Math.PI * 2;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+        
+        // Inner vertex
+        const ix = cosT * innerRadius;
+        const iz = sinT * innerRadius;
+        const iy = sw.terrain ? (sw.terrain.getHeightAt(ix + sw.origin.x, iz + sw.origin.z) - sw.origin.y + 2) : 0;
+        pos.setXYZ(s, ix, iy, iz);
+        
+        // Outer vertex
+        const ox = cosT * outerRadius;
+        const oz = sinT * outerRadius;
+        const oy = sw.terrain ? (sw.terrain.getHeightAt(ox + sw.origin.x, oz + sw.origin.z) - sw.origin.y + 2) : 0;
+        pos.setXYZ(s + segments + 1, ox, oy, oz);
       }
+      
+      pos.needsUpdate = true;
 
-      sw.mesh.geometry = newGeom;
-
-      // Fade out
       sw.mesh.material.opacity = sw.startOpacity * (1.0 - t * t);
-
-      // Color shift: bright yellow → orange as it fades
-      const color = new THREE.Color();
-      color.lerpColors(new THREE.Color(0xffdd00), new THREE.Color(0xff6600), t);
-      sw.mesh.material.color.copy(color);
+      this._tempColor.lerpColors(new THREE.Color(0xffdd00), new THREE.Color(0xff6600), t);
+      sw.mesh.material.color.copy(this._tempColor);
     }
   }
 
+  /// GameManager.js calls _getFree() to get a particle slot for death smoke.
+  /// Returns a proxy object that mimics the old particle format so
+  /// GameManager doesn't need to change.
   _getFree() {
-    for (let i = 0; i < this.maxParticles; i++) {
-      if (!this.particles[i].active) return this.particles[i];
-    }
-    return null;
+    const idx = this.engine.get_free();
+    if (idx < 0) return null;
+
+    const engine = this.engine;
+    // Return a thin proxy object matching the old API:
+    // { active, position: {copy, set}, velocity: {set}, age, life, color: {setHex} }
+    const proxy = {
+      _idx: idx,
+      _engine: engine,
+      set active(val) {
+        if (val) {
+          // Will be activated via activate() when all properties are set
+        }
+      },
+      get active() { return true; },
+      position: {
+        _x: 0, _y: 0, _z: 0,
+        copy(v) { this._x = v.x; this._y = v.y; this._z = v.z; return this; },
+        set(x, y, z) { this._x = x; this._y = y; this._z = z; return this; },
+        get x() { return this._x; },
+        get y() { return this._y; },
+        get z() { return this._z; }
+      },
+      velocity: {
+        _x: 0, _y: 0, _z: 0,
+        set(x, y, z) { this._x = x; this._y = y; this._z = z; return this; },
+        get x() { return this._x; },
+        get y() { return this._y; },
+        get z() { return this._z; }
+      },
+      age: 0,
+      life: 0,
+      color: {
+        _r: 1, _g: 1, _b: 1,
+        setHex(hex) {
+          this._r = ((hex >> 16) & 0xFF) / 255;
+          this._g = ((hex >> 8) & 0xFF) / 255;
+          this._b = (hex & 0xFF) / 255;
+          // Trigger the flush since this is the last property set by GameManager
+          this._parent._commit();
+          return this;
+        }
+      },
+      // Flush: commit this proxy particle into the Rust engine.
+      _commit() {
+        engine.activate(
+          idx,
+          this.position._x, this.position._y, this.position._z,
+          this.velocity._x, this.velocity._y, this.velocity._z,
+          this.life,
+          this.color._r, this.color._g, this.color._b
+        );
+      }
+    };
+    proxy.color._parent = proxy;
+    return proxy;
   }
 
   reset() {
-    for (const p of this.particles) p.active = false;
+    this.engine.reset();
     this.debrisPool.length = 0;
     this.instancedMesh.count = 0;
     // Clean up shockwaves

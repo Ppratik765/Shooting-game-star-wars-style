@@ -1,4 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig(({ mode }) => {
   // Load all environment variables from .env
@@ -6,6 +8,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      wasm(),
+      topLevelAwait(),
       {
         name: 'local-vercel-api-middleware',
         configureServer(server) {
@@ -239,6 +243,12 @@ export default defineConfig(({ mode }) => {
           });
         }
       }
-    ]
+    ],
+    optimizeDeps: {
+      exclude: ['core-engine']
+    },
+    build: {
+      target: 'esnext'
+    }
   };
 });

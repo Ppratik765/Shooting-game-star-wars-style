@@ -9,11 +9,15 @@ const appContainer = document.getElementById('app');
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || (navigator.maxTouchPoints > 1 && window.innerWidth < 1200);
 
+
+
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate
-renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
+// Set pixel ratio to 1.3 as requested by user
+renderer.setPixelRatio(isMobile ? 1.0 : 1.3);
 renderer.toneMapping = THREE.ReinhardToneMapping;
+
+
 appContainer.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -27,12 +31,17 @@ let useComposer = !isMobile;
 
 if (useComposer) {
   const renderScene = new RenderPass(scene, camera);
+  // Render bloom at half-resolution to save massive GPU fill rate (visually identical)
   const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
     1.0,  // strength — full vibrant glow
     0.3,  // radius
     0.2   // threshold — low enough for lasers/suns/explosions to bloom, but avoids dark terrain
   );
+  
+  // Limit bloom passes to 3 instead of 5 to save GPU fill rate (the shader will safely sample black textures for the remaining 2)
+  bloomPass.nMips = 3;
+
   composer = new EffectComposer(renderer);
   composer.addPass(renderScene);
   composer.addPass(bloomPass);
@@ -42,19 +51,30 @@ if (useComposer) {
 const gameManager = new GameManager(scene, camera, isMobile);
 
 // Resize
+function triggerResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+}
+
 let resizePending = false;
-window.addEventListener('resize', () => {
+const handleResize = () => {
   if (resizePending) return;
   resizePending = true;
   requestAnimationFrame(() => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    if (composer) composer.setSize(w, h);
+    triggerResize();
     resizePending = false;
   });
+};
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => {
+  handleResize();
+  setTimeout(handleResize, 100);
+  setTimeout(handleResize, 300);
 });
 
 // Game loop

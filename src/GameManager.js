@@ -52,6 +52,7 @@ export class GameManager {
     this.isStarted = false;
     this.isMobile = isMobile;
 
+
     this.state = { timeSurvived: 0, kills: 0 };
 
     // New state variables for polish upgrades
@@ -95,9 +96,12 @@ export class GameManager {
 
     this.terrain = new Terrain(this.scene, isMobile);
     this.particleSystem = new ParticleSystem(this.scene, isMobile);
-    this.powerUpManager = new PowerUpManager(this.scene, isMobile);
     this.enemyManager = new EnemyManager(this.scene, this.particleSystem, this.playerShip, isMobile);
+    this.enemyManager.terrain = this.terrain;
+
+    this.powerUpManager = new PowerUpManager(this.scene, this.playerShip);
     this.enemyManager.powerUpManager = this.powerUpManager;
+    
     this.audioManager = new AudioManager();
     this.uiManager.initSettings(this.inputController, this.audioManager, this.playerShip);
     this.weaponSystem = new WeaponSystem(this.scene, this.camera, this.enemyManager, this.uiManager, isMobile, this.audioManager, this.terrain, this.particleSystem);
@@ -106,8 +110,6 @@ export class GameManager {
     // Active power-up tracking state
     this.activePowerUp = null; // 'WEAPONS' or 'ENGINES'
     this.powerUpTimeRemaining = 0.0;
-
-    this.enemyManager.terrain = this.terrain;
 
     this.enemyManager.onEnemyKilled = () => {
       this.state.kills++;
@@ -416,10 +418,10 @@ export class GameManager {
     starGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const starMat = new THREE.PointsMaterial({
-      size: 2.3, // Smaller star points
-      vertexColors: true,
+      size: 2.3, // Larger star points in light mode
       transparent: true,
-      opacity: 0.8, // Softer background blending
+      blending: THREE.AdditiveBlending,
+      opacity: 0.8, // Fully opaque in light mode
       sizeAttenuation: false,  // constant size regardless of distance
       fog: false
     });
@@ -635,6 +637,8 @@ export class GameManager {
       isSlowMo = true;
     }
 
+    const activeInput = this.inputController;
+
     // Consume accumulated input — cap mouse deltas before any physics
     this.inputController.consumeMovement();
 
@@ -670,7 +674,7 @@ export class GameManager {
         }
       }
 
-      this.playerShip.update(deltaTime, this.inputController, this.terrain, true); // true = isIntro
+      this.playerShip.update(deltaTime, activeInput, this.terrain, true); // true = isIntro
       this.terrain.update(this.playerShip.camera.position.x, this.playerShip.camera.position.z);
       this.skyGroup.position.copy(this.playerShip.camera.position);
       this.inputController.clearDeltas();
@@ -717,29 +721,50 @@ export class GameManager {
     const colorRedOrange = new THREE.Color(0x3d1201); // slightly more vibrant sunset rust
     const currentSkyColor = new THREE.Color();
 
-    if (time < 75) {
-      // Minute 0 to 1:15 - Keep sky black
-      currentSkyColor.copy(colorBlack);
-      this.lightningFlashTimer = 0;
-    } else if (time < 150) {
-      // Minute 1:15 to 2:30 - Transition to blue and trigger slight lightning (Delayed by 15s)
-      const u = (time - 75) / 75;
-      currentSkyColor.lerpColors(colorBlack, colorBlue, u);
-
-      if (time > this.nextLightningTime) {
-        this.lightningFlashTimer = 0.07;
-        this.nextLightningTime = time + 10.0 + Math.random() * 8.0;
-        this._triggerLightningStrike();
+    if (this.isLightMode) {
+      // 1. Change the sky and fog to Powder Petal
+      currentSkyColor.setHex(0xefd9ce); 
+      if (this.scene.fog) {
+        this.scene.fog.color.setHex(0xefd9ce);
+      }
+      
+      // 2. Change the terrain wireframe to Medium Slate Blue
+      if (this.terrain && this.terrain.material) {
+        this.terrain.material.wireframe = true;
+        
+        if (this.terrain.material.color) {
+            this.terrain.material.color.setHex(0x7161ef);
+        } else if (this.terrain.material.uniforms) {
+            if (this.terrain.material.uniforms.color) {
+                this.terrain.material.uniforms.color.value.setHex(0x7161ef);
+            }
+        }
       }
     } else {
-      // Minute 2:30+ - Transition to red/orange/yellow and trigger extreme lightning
-      const u = Math.min(1.0, (time - 150) / 60);
-      currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
-
-      if (time > this.nextLightningTime) {
-        this.lightningFlashTimer = 0.07;
-        this.nextLightningTime = time + 2.0 + Math.random() * 3.5;
-        this._triggerLightningStrike();
+      if (time < 75) {
+        // Minute 0 to 1:15 - Keep sky black
+        currentSkyColor.copy(colorBlack);
+        this.lightningFlashTimer = 0;
+      } else if (time < 150) {
+        // Minute 1:15 to 2:30 - Transition to blue and trigger slight lightning (Delayed by 15s)
+        const u = (time - 75) / 75;
+        currentSkyColor.lerpColors(colorBlack, colorBlue, u);
+  
+        if (time > this.nextLightningTime) {
+          this.lightningFlashTimer = 0.07;
+          this.nextLightningTime = time + 10.0 + Math.random() * 8.0;
+          this._triggerLightningStrike();
+        }
+      } else {
+        // Minute 2:30+ - Transition to red/orange/yellow and trigger extreme lightning
+        const u = Math.min(1.0, (time - 150) / 60);
+        currentSkyColor.lerpColors(colorBlue, colorRedOrange, u);
+  
+        if (time > this.nextLightningTime) {
+          this.lightningFlashTimer = 0.07;
+          this.nextLightningTime = time + 2.0 + Math.random() * 3.5;
+          this._triggerLightningStrike();
+        }
       }
     }
 
@@ -768,7 +793,7 @@ export class GameManager {
     }
 
     // 5. Update game entities (applying slow-mo actualDelta)
-    this.playerShip.update(actualDelta, this.inputController, this.terrain, false);
+    this.playerShip.update(actualDelta, activeInput, this.terrain, false);
     
     // Copy lightning flash factor to terrain shader
     if (this.terrain.material && this.terrain.material.uniforms.uLightning) {
@@ -832,7 +857,7 @@ export class GameManager {
     const weaponInput = this.playerShip.isStalled ? {
       isFiring: () => false,
       isLocking: () => false
-    } : this.inputController;
+    } : activeInput;
     this.weaponSystem.update(actualDelta, weaponInput, currentTime, this.playerShip.velocity);
     this.particleSystem.update(actualDelta, this.terrain);
     this.speedLines.update(actualDelta, this.playerShip.isBoosting);
@@ -848,7 +873,7 @@ export class GameManager {
     this.audioManager.updateFlyby(actualDelta, this.enemyManager.getEnemies(), this.playerShip.camera.position);
 
     // UI Updates
-    this.uiManager.setCrosshairTarget(this.inputController.mouse.x, this.inputController.mouse.y);
+    this.uiManager.setCrosshairTarget(activeInput.mouse.x, activeInput.mouse.y);
     this.uiManager.update(
       actualDelta,
       this.playerShip.getState(),
@@ -902,6 +927,8 @@ export class GameManager {
   }
 
   _checkDeathConditions() {
+
+
     if (this.playerShip.terrainCrashed) {
       this._startDeathSequence('TERRAIN IMPACT — SHIP DESTROYED');
       return;
@@ -1057,7 +1084,7 @@ export class GameManager {
       const offset = new THREE.Vector3(0, 15, 30).applyQuaternion(this.ejectPod.quaternion);
       this.camera.position.copy(this.ejectPod.position).add(offset);
 
-      if (!this.xwingExploded && this.xwingMesh) {
+      if (this.xwingMesh) {
         this.camera.lookAt(this.xwingMesh.position);
       } else {
         const site = this.xwingMesh ? this.xwingMesh.position : this.ejectPod.position;

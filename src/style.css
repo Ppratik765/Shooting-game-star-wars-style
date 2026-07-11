@@ -226,6 +226,15 @@ html, body {
   text-align: center; padding: 20px; text-shadow: 0 0 10px #00ffaa;
 }
 
+@media screen and (orientation: portrait) and (max-width: 900px) {
+  #landscape-prompt {
+    display: flex;
+  }
+  #start-screen {
+    display: none !important;
+  }
+}
+
 #mobile-hud {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   z-index: 50; pointer-events: none;
@@ -639,16 +648,7 @@ html, body {
   }
 }
 
-@media (max-width: 1024px) and (orientation: portrait) {
-  /* All game UI hidden in portrait — landscape prompt takes over */
-  #landscape-prompt { display: flex; }
-  #ui-layer, #app { display: none; }
-}
-
-@media (max-width: 1024px) and (orientation: landscape) {
-  #landscape-prompt { display: none; }
-  #ui-layer, #app { display: block; }
-}
+/* Orientation restrictions removed to allow portrait mode rendering */
 
 /* === Start Screen === */
 #start-screen {

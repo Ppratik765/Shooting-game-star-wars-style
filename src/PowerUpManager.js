@@ -160,6 +160,8 @@ export class PowerUpManager {
     item.group.visible = false;
     if (item.mesh) {
       item.group.remove(item.mesh);
+      item.mesh.geometry.dispose();
+      item.mesh.material.dispose();
       item.mesh = null;
     }
     if (item.textSprite) {
@@ -176,6 +178,8 @@ export class PowerUpManager {
       item.group.visible = false;
       if (item.mesh) {
         item.group.remove(item.mesh);
+        item.mesh.geometry.dispose();
+        item.mesh.material.dispose();
         item.mesh = null;
       }
       if (item.textSprite) {
