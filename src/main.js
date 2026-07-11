@@ -13,8 +13,8 @@ const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Desktop/Mobile: clamp pixel ratio to 1.0 to massively reduce fill rate on integrated GPUs
-renderer.setPixelRatio(1.0);
+// Set pixel ratio to 1.3 as requested by user
+renderer.setPixelRatio(isMobile ? 1.0 : 1.3);
 renderer.toneMapping = THREE.ReinhardToneMapping;
 
 
@@ -38,6 +38,19 @@ if (useComposer) {
     0.3,  // radius
     0.2   // threshold — low enough for lasers/suns/explosions to bloom, but avoids dark terrain
   );
+  
+  // Limit bloom passes to 3 instead of 5 to save GPU fill rate
+  bloomPass.nMips = 3;
+  // Rebuild composite material for 3 mips to avoid unnecessary texture samples
+  bloomPass.compositeMaterial = bloomPass._getCompositeMaterial(3);
+  bloomPass.compositeMaterial.uniforms[ 'blurTexture1' ].value = bloomPass.renderTargetsVertical[ 0 ].texture;
+  bloomPass.compositeMaterial.uniforms[ 'blurTexture2' ].value = bloomPass.renderTargetsVertical[ 1 ].texture;
+  bloomPass.compositeMaterial.uniforms[ 'blurTexture3' ].value = bloomPass.renderTargetsVertical[ 2 ].texture;
+  bloomPass.compositeMaterial.uniforms[ 'bloomStrength' ].value = 1.0;
+  bloomPass.compositeMaterial.uniforms[ 'bloomRadius' ].value = 0.3;
+  bloomPass.compositeMaterial.uniforms[ 'bloomFactors' ].value = [ 1.0, 0.8, 0.6 ];
+  bloomPass.compositeMaterial.uniforms[ 'bloomTintColors' ].value = [ new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1) ];
+
   composer = new EffectComposer(renderer);
   composer.addPass(renderScene);
   composer.addPass(bloomPass);
