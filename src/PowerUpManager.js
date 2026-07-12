@@ -46,6 +46,7 @@ export class PowerUpManager {
       const container = {
         group,
         mesh: null,
+        glowMesh: null,
         textSprite: null,
         active: false,
         type: null,
@@ -110,6 +111,11 @@ export class PowerUpManager {
     if (item.mesh) {
       item.group.remove(item.mesh);
     }
+    if (item.glowMesh) {
+      item.group.remove(item.glowMesh);
+      item.glowMesh.material.dispose();
+      item.glowMesh = null;
+    }
     if (item.textSprite) {
       item.group.remove(item.textSprite);
       item.textSprite.material.map.dispose();
@@ -121,6 +127,18 @@ export class PowerUpManager {
     const mesh = new THREE.Mesh(geom, mat);
     item.mesh = mesh;
     item.group.add(mesh);
+
+    if (this.isMobile) {
+      const glowMat = mat.clone();
+      glowMat.transparent = true;
+      glowMat.opacity = 0.5;
+      glowMat.blending = THREE.AdditiveBlending;
+      glowMat.depthWrite = false;
+      const glowMesh = new THREE.Mesh(geom, glowMat);
+      glowMesh.scale.setScalar(1.12); // slightly larger wireframe to simulate edge glow
+      item.glowMesh = glowMesh;
+      item.group.add(glowMesh);
+    }
 
     // No floating text label anymore (removed per user request)
     item.textSprite = null;
