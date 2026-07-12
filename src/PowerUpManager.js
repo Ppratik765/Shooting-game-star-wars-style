@@ -131,11 +131,11 @@ export class PowerUpManager {
     if (this.isMobile) {
       const glowMat = mat.clone();
       glowMat.transparent = true;
-      glowMat.opacity = 0.5;
+      glowMat.opacity = 0.65;
       glowMat.blending = THREE.AdditiveBlending;
       glowMat.depthWrite = false;
       const glowMesh = new THREE.Mesh(geom, glowMat);
-      glowMesh.scale.setScalar(1.12); // slightly larger wireframe to simulate edge glow
+      glowMesh.scale.setScalar(1.35); // increased glow size for better visibility
       item.glowMesh = glowMesh;
       item.group.add(glowMesh);
     }

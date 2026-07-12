@@ -222,6 +222,29 @@ export class EnemyManager {
     tie3.add(lw3, rw3);
     variants.push(tie3);
 
+    // Apply mobile-specific glow effect
+    if (this.isMobile) {
+      const mobileEnemyGlowMat = new THREE.MeshBasicMaterial({
+        wireframe: true,
+        color: 0xff3300,
+        opacity: 0.6,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      
+      variants.forEach(variant => {
+        const glowGroup = variant.clone();
+        glowGroup.scale.setScalar(1.2);
+        glowGroup.traverse(child => {
+          if (child.isMesh) {
+            child.material = mobileEnemyGlowMat;
+          }
+        });
+        variant.add(glowGroup);
+      });
+    }
+
     return variants;
   }
 
