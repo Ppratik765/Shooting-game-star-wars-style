@@ -11,7 +11,12 @@ export class ParticleSystem {
 
     this.maxParticles = isMobile ? 1500 : 4000;
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+    const material = new THREE.MeshBasicMaterial({ 
+      color: 0xffaa00,
+      blending: isMobile ? THREE.AdditiveBlending : THREE.NormalBlending,
+      transparent: isMobile ? true : false,
+      depthWrite: !isMobile
+    });
 
     this.instancedMesh = new THREE.InstancedMesh(geometry, material, this.maxParticles);
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -121,8 +126,8 @@ export class ParticleSystem {
   // Stays entirely in JS — creates/destroys Three.js geometry
   spawnShockwave(position, terrain = null) {
     const config = [
-      { maxRadius: 250, maxAge: 1.2, opacity: 0.8 },
-      { maxRadius: 400, maxAge: 1.6, opacity: 0.5 }
+      { maxRadius: 250, maxAge: 1.2, opacity: this.isMobile ? 1.0 : 0.8 },
+      { maxRadius: 400, maxAge: 1.6, opacity: this.isMobile ? 0.8 : 0.5 }
     ];
 
     const segments = this.isMobile ? 16 : 32;

@@ -80,6 +80,16 @@ export class WeaponSystem {
       });
     } else {
       this.uniforms = { uTime: { value: 0 } };
+      glowGeom = new THREE.CylinderGeometry(boltRadius * 3.5, boltRadius * 3.5, boltLength * 1.05, 4, 1);
+      glowGeom.rotateX(-Math.PI / 2);
+      glowMat = new THREE.MeshBasicMaterial({
+        color: 0xff6600,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
     }
 
     // Shared Materials for performance
@@ -108,7 +118,7 @@ export class WeaponSystem {
       this.scene.add(coreMesh);
 
       let glow = null;
-      if (!isMobile && glowGeom && glowMat) {
+      if (glowGeom && glowMat) {
         glow = new THREE.Mesh(glowGeom, glowMat);
         glow.visible = false;
         this.scene.add(glow);
