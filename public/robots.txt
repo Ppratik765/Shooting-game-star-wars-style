@@ -1,0 +1,29 @@
+# Vector Squadron - 3D WebGL Space Combat & Flight Simulator
+# Author: Priyanshu Pratik
+# Website: https://vector-squadron.vercel.app/
+
+User-agent: *
+Allow: /
+Crawl-delay: 0
+
+# Search Engine Specific Web Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Yandex
+Allow: /
+
+# Sitemap Location
+Sitemap: https://vector-squadron.vercel.app/sitemap.xml
