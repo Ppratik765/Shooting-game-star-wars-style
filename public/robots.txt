@@ -1,5 +1,5 @@
 # Vector Squadron - 3D WebGL Space Combat & Flight Simulator
-# Author: Priyanshu Pratik
+# Author: Priyanshu
 # Website: https://vector-squadron.vercel.app/
 
 User-agent: *
