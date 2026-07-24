@@ -12,11 +12,13 @@
   <meta name="google-site-verification" content="pLet7Z6NmA5idOkhiSxF84aG09ukl4pw1_6mSxm6fTU" />
 
   <!-- Primary SEO Meta Tags -->
-  <title>Vector Squadron - 3D WebGL Space Combat & Flight Simulator</title>
-  <meta name="title" content="Vector Squadron - 3D WebGL Space Combat & Flight Simulator" />
-  <meta name="description" content="Vector Squadron by Priyanshu Pratik is an action-packed 3D WebGL space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
-  <meta name="keywords" content="Vector Squadron, Priyanshu Pratik, 3D WebGL game, Rust WASM, Three.js flight simulation, dog fighting game, space shooting game, Star Wars space combat, browser game, retro wireframe shooter" />
-  <meta name="author" content="Priyanshu Pratik" />
+  <title>Vector Squadron - 3D Space Combat & Flight Simulator</title>
+  <meta name="title" content="Vector Squadron - 3D Space Combat & Flight Simulator" />
+  <meta name="description"
+    content="Vector Squadron is an action-packed 3D space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
+  <meta name="keywords"
+    content="Vector Squadron, Priyanshu, 3D WebGL game, Rust WASM, Three.js flight simulation, dog fighting game, space shooting game, Star Wars space combat, browser game, retro wireframe shooter, space game, ppratik765" />
+  <meta name="author" content="Priyanshu" />
   <meta name="robots" content="index, follow" />
 
   <!-- Canonical URL -->
@@ -26,14 +28,16 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://vector-squadron.vercel.app/" />
   <meta property="og:title" content="Vector Squadron - 3D WebGL Space Combat & Flight Simulator" />
-  <meta property="og:description" content="Vector Squadron by Priyanshu Pratik is an action-packed 3D WebGL space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
+  <meta property="og:description"
+    content="Vector Squadron by Priyanshu is an action-packed 3D WebGL space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
   <meta property="og:site_name" content="Vector Squadron" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:url" content="https://vector-squadron.vercel.app/" />
   <meta name="twitter:title" content="Vector Squadron - 3D WebGL Space Combat & Flight Simulator" />
-  <meta name="twitter:description" content="Vector Squadron by Priyanshu Pratik is an action-packed 3D WebGL space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
+  <meta name="twitter:description"
+    content="Vector Squadron by Priyanshu is an action-packed 3D WebGL space shooting game, arcade dog fighting game, and retro flight simulator built with Rust WASM and Three.js." />
 
   <!-- Structured Data (JSON-LD) -->
   <script type="application/ld+json">
@@ -63,8 +67,10 @@
   <div id="app"></div>
 
   <div id="landscape-prompt">
-    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#00ffaa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
-      <rect x="22" y="8" width="20" height="36" rx="3" transform="rotate(-30 32 26)" stroke-dasharray="2 2" opacity="0.5" />
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#00ffaa" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
+      <rect x="22" y="8" width="20" height="36" rx="3" transform="rotate(-30 32 26)" stroke-dasharray="2 2"
+        opacity="0.5" />
       <rect x="14" y="22" width="36" height="20" rx="3" />
       <line x1="18" y1="26" x2="18" y2="38" />
       <circle cx="46" cy="32" r="1.5" fill="#00ffaa" />
@@ -75,7 +81,8 @@
     <div style="font-size:18px; margin-top:10px; color:#ffb700; text-transform:uppercase;">
       FOR BEST DOGFIGHT EXPERIENCE
     </div>
-    <div style="font-size:15px; margin-top:12px; color:#88ffcc; text-transform:uppercase; letter-spacing:1px; opacity:0.8;">
+    <div
+      style="font-size:15px; margin-top:12px; color:#88ffcc; text-transform:uppercase; letter-spacing:1px; opacity:0.8;">
       (OR USE A DESKTOP FOR THE BEST EXPERIENCE)
     </div>
   </div>
@@ -111,13 +118,14 @@
       <div id="settings-content-desktop" class="desktop-settings-only">
         <div id="settings-title">TACTICAL SETTINGS</div>
         <div class="settings-divider"></div>
-        
+
         <div class="settings-group">
           <div class="settings-group-title">[ FLIGHT OPTIONS ]</div>
           <div class="settings-row">
             <label>Mouse Sensitivity</label>
             <div class="slider-container">
-              <input type="range" id="setting-mouse-sensitivity" min="0.1" max="3.0" step="0.1" value="1.0" class="retro-slider">
+              <input type="range" id="setting-mouse-sensitivity" min="0.1" max="3.0" step="0.1" value="1.0"
+                class="retro-slider">
               <span id="value-mouse-sensitivity" class="slider-value">1.0</span>
             </div>
           </div>
@@ -190,7 +198,8 @@
           </div>
         </div>
 
-        <button id="save-button" class="settings-btn" style="width: 100%; margin-top: 15px;">[ SAVE & RETURN TO COCKPIT ]</button>
+        <button id="save-button" class="settings-btn" style="width: 100%; margin-top: 15px;">[ SAVE & RETURN TO COCKPIT
+          ]</button>
       </div>
 
       <!-- Mobile calibration settings menu -->
@@ -316,7 +325,7 @@
           <div id="new-pb-tag" style="display: none;">★ NEW PERSONAL BEST ★</div>
         </div>
       </div>
-      
+
       <div style="display: flex; gap: 15px; width: 100%; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
         <button id="retry-button" style="margin: 0; flex: 1 1 auto; min-width: 140px;">[ RETRY ]</button>
         <button id="leaderboard-btn" style="margin: 0; flex: 1 1 auto; min-width: 240px;">[ VIEW LEADERBOARD ]</button>
@@ -324,14 +333,17 @@
 
       <!-- Leaderboard submission form (Personal Best) -->
       <div id="leaderboard-submit-container" style="display: none;">
-        <div style="color: #00ffaa; font-size: 24px; margin-bottom: 12px; letter-spacing: 2px;">★ NEW GLOBAL HIGHSCORE ★</div>
+        <div style="color: #00ffaa; font-size: 24px; margin-bottom: 12px; letter-spacing: 2px;">★ NEW GLOBAL HIGHSCORE ★
+        </div>
         <input type="text" id="leaderboard-alias" placeholder="ENTER CALLSIGN" maxlength="15" autofocus>
         <button id="btn-submit-score">[ UPLOAD DATA ]</button>
       </div>
 
       <!-- Scrollable Leaderboard Table -->
       <div id="leaderboard-display-container" style="display: none;">
-        <div style="color: #00ffaa; font-size: 28px; letter-spacing: 3px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 10px #00ffaa;">[ GLOBAL SQUADRON RANKS ]</div>
+        <div
+          style="color: #00ffaa; font-size: 28px; letter-spacing: 3px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 10px #00ffaa;">
+          [ GLOBAL SQUADRON RANKS ]</div>
         <div class="leaderboard-table-wrapper">
           <table id="leaderboard-table">
             <thead>
